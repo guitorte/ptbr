@@ -497,6 +497,9 @@ body {
 .tol-row {
   display: flex; align-items: center; gap: 6px; margin-top: 8px;
 }
+.sb-around-row { display: flex; gap: 6px; margin-bottom: 2px; }
+.sb-input-half { flex: 1; min-width: 0; }
+.sil-range-row { display: flex; gap: 4px; margin-bottom: 6px; }
 .tol-label { font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
   text-transform: uppercase; color: var(--muted); flex: 1; }
 .tol-val { font-size: 12px; font-weight: 700; color: var(--text);
@@ -583,6 +586,11 @@ body {
   <aside id="sidebar" aria-label="Filtros">
     <div class="sb-section">
       <span class="sb-label">Número de sílabas</span>
+      <div class="sil-range-row">
+        <button class="r-btn sel" data-silmode="eq"  onclick="setSilMode('eq')"> = </button>
+        <button class="r-btn"     data-silmode="lte" onclick="setSilMode('lte')">≤</button>
+        <button class="r-btn"     data-silmode="gte" onclick="setSilMode('gte')">≥</button>
+      </div>
       <div class="stepper">
         <button class="step-btn" onclick="stepSilabas(-1)" aria-label="Menos sílabas">−</button>
         <span class="step-val" id="step-val">Qualquer</span>
@@ -616,6 +624,30 @@ body {
       <input id="onset-input" class="sb-input" type="text"
              placeholder="tr, pr, fl, s, r…"
              autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Consoantes ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="cons-antes-input" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="cons-depois-input" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(-1)" aria-label="Menos tolerância">−</button>
+        <span class="tol-val" id="tol-ar-val-sb">0</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(1)" aria-label="Mais tolerância">+</button>
+      </div>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Vogais ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="vog-antes-input" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="vog-depois-input" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
     </div>
     <div class="sb-section">
       <div class="sb-label-row">
@@ -743,6 +775,11 @@ body {
   <div class="sheet-body">
     <div class="sh-section">
       <span class="sh-label">Número de sílabas</span>
+      <div class="sil-range-row">
+        <button class="r-btn sel" data-silmode="eq"  onclick="setSilMode('eq')"> = </button>
+        <button class="r-btn"     data-silmode="lte" onclick="setSilMode('lte')">≤</button>
+        <button class="r-btn"     data-silmode="gte" onclick="setSilMode('gte')">≥</button>
+      </div>
       <div class="stepper">
         <button class="step-btn" onclick="stepSilabas(-1)">−</button>
         <span class="step-val" id="step-val-sh">Qualquer</span>
@@ -776,6 +813,30 @@ body {
       <input id="onset-input-sh" class="sb-input" type="text"
              placeholder="tr, pr, fl, s, r…"
              autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Consoantes ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="cons-antes-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="cons-depois-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(-1)">−</button>
+        <span class="tol-val" id="tol-ar-val-sh">0</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(1)">+</button>
+      </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Vogais ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="vog-antes-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="vog-depois-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
     </div>
     <div class="sh-section">
       <div class="sh-label-row">
@@ -1018,6 +1079,10 @@ function calcAssC(sil,ti) {
     let span = sil.slice(ti).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,'');
     return [...new Set(span)].sort().join('');
 }
+function calcConsAntes(sil, ti)  { return sil.slice(0, ti).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
+function calcVogAntes(sil, ti)   { return normV(sil.slice(0, ti).join('')).replace(/[^aeiou]/g,''); }
+function calcConsDepois(sil, ti) { return sil.slice(ti + 1).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
+function calcVogDepois(sil, ti)  { return normV(sil.slice(ti + 1).join('')).replace(/[^aeiou]/g,''); }
 function calcFam(o)  { return !o?'vz':o.length===1?'si':(CLUSTER_FAM[o]||'cx'); }
 function calcAcent(sil,ti) { let d=sil.length-1-ti; return d===0?'ox':d===1?'px':d===2?'ppx':'spx'; }
 function extrairRima(sil,ti)   { let pf=sil.slice(ti).join(''),m=pf.match(vRegex); return m?pf.slice(m.index).toLowerCase():pf.toLowerCase(); }
@@ -1126,6 +1191,10 @@ function perfilFonetico(palavra) {
         espinhaVocal: calcEspinha(pL),
         espinhaConsonantal: calcEspinhaConsonantal(pL),
         assConsonantal: calcAssC(sil, ti),
+        consAntes:  calcConsAntes(sil, ti),
+        vogAntes:   calcVogAntes(sil, ti),
+        consDepois: calcConsDepois(sil, ti),
+        vogDepois:  calcVogDepois(sil, ti),
         tracosCoda: calcTracosCoda(sil, ti),
         familiaCluster: calcFam(onset),
         coda: calcCoda(pL),
@@ -1219,7 +1288,11 @@ let FILTROS_NEG = {
     rimaPerfeita: false, vogaisRima: false, espinhaVocal: false,
     coda: false, classe: false, freq: false,
 };
-let FILTROS_CONTEM = { vogais: null, consoantes: null, tolerancia: 0 };
+let FILTROS_CONTEM = {
+    vogais: null, consoantes: null, tolerancia: 0,
+    consAntes: null, vogAntes: null, consDepois: null, vogDepois: null,
+    toleranciaAoRedor: 0,
+};
 let FILTRO_TRACOS  = new Set(); // traços fonéticos exigidos na coda
 // tolerancia: 0=exato, 1=tier≤1 (sonoridade), 2=tier≤2 (r/l, m/n)
 
@@ -1246,6 +1319,7 @@ let itemsRenderizados   = 0;
 const CHUNK             = 60;
 let iObserver           = null;
 let buildSilabas        = 0;
+let buildSilMode        = 'eq'; // 'eq' | 'lte' | 'gte'
 
 const CAMPOS_MOLDE = ['rimaPerfeita','vogaisRima','espinhaVocal','onsetTonico','familiaCluster','coda','classe','freq'];
 
@@ -1296,9 +1370,16 @@ function processarBusca() {
     let filtrados = base.filter(item => {
         for (let [k, v] of Object.entries(FILTROS)) {
             if (v === null) continue;
+            if (k === 'numSilabas') continue; // handled separately with range mode
             let match = item[k] === v;
             if (FILTROS_NEG[k]) { if (match) return false; }
             else                 { if (!match) return false; }
+        }
+        if (buildSilabas > 0) {
+            const n = item.numSilabas;
+            if (buildSilMode === 'eq'  && n !== buildSilabas) return false;
+            if (buildSilMode === 'lte' && n >   buildSilabas) return false;
+            if (buildSilMode === 'gte' && n <   buildSilabas) return false;
         }
         if (FILTRO_TRACOS.size > 0) {
             for (let t of FILTRO_TRACOS) {
@@ -1316,6 +1397,30 @@ function processarBusca() {
             } else {
                 if (!item.espinhaConsonantal.includes(q)) return false;
             }
+        }
+        if (FILTROS_CONTEM.consAntes) {
+            let q = FILTROS_CONTEM.consAntes.replace(/[aeiouáàâãéêíóôõúü]/g,'');
+            if (FILTROS_CONTEM.toleranciaAoRedor > 0) {
+                if (!fuzzyConsMatch(item.consAntes, q, FILTROS_CONTEM.toleranciaAoRedor)) return false;
+            } else {
+                if (!item.consAntes.includes(q)) return false;
+            }
+        }
+        if (FILTROS_CONTEM.vogAntes) {
+            let q = _normParaContem(FILTROS_CONTEM.vogAntes);
+            if (!_normParaContem(item.vogAntes).includes(q)) return false;
+        }
+        if (FILTROS_CONTEM.consDepois) {
+            let q = FILTROS_CONTEM.consDepois.replace(/[aeiouáàâãéêíóôõúü]/g,'');
+            if (FILTROS_CONTEM.toleranciaAoRedor > 0) {
+                if (!fuzzyConsMatch(item.consDepois, q, FILTROS_CONTEM.toleranciaAoRedor)) return false;
+            } else {
+                if (!item.consDepois.includes(q)) return false;
+            }
+        }
+        if (FILTROS_CONTEM.vogDepois) {
+            let q = _normParaContem(FILTROS_CONTEM.vogDepois);
+            if (!_normParaContem(item.vogDepois).includes(q)) return false;
         }
         return true;
     });
@@ -1454,6 +1559,15 @@ function toggleLego(id) {
     let wasLocked = FILTROS[id] !== null;
     FILTROS[id]     = wasLocked ? null : alvoAtual[id];
     FILTROS_NEG[id] = false;
+    if (id === 'numSilabas') {
+        buildSilabas = wasLocked ? 0 : alvoAtual.numSilabas;
+        buildSilMode = 'eq';
+        _syncSilModeUI();
+        ['step-val','step-val-sh'].forEach(i => {
+            let el = document.getElementById(i);
+            if (el) el.textContent = buildSilabas === 0 ? 'Qualquer' : buildSilabas;
+        });
+    }
     if (navigator.vibrate) navigator.vibrate(wasLocked ? 15 : 45);
     renderLegoBar();
     processarBusca();
@@ -1639,6 +1753,51 @@ function stepSilabas(delta) {
     _updateFabBadge();
 }
 
+function setSilMode(mode) {
+    buildSilMode = mode;
+    _syncSilModeUI();
+    if (buildSilabas > 0) { processarBusca(); _updateFabBadge(); }
+}
+function _syncSilModeUI() {
+    document.querySelectorAll('[data-silmode]').forEach(btn => {
+        btn.classList.toggle('sel', btn.dataset.silmode === buildSilMode);
+    });
+}
+
+const TOL_AR_LABELS = ['0', '1', '2'];
+function stepTolAoRedor(delta) {
+    FILTROS_CONTEM.toleranciaAoRedor = Math.max(0, Math.min(2, FILTROS_CONTEM.toleranciaAoRedor + delta));
+    const lbl = TOL_AR_LABELS[FILTROS_CONTEM.toleranciaAoRedor];
+    ['tol-ar-val-sb','tol-ar-val-sh'].forEach(id => {
+        let el = document.getElementById(id); if (el) el.textContent = lbl;
+    });
+    if (navigator.vibrate) navigator.vibrate(20);
+    processarBusca();
+    _updateFabBadge();
+}
+
+let _arTimer;
+function _onArInput(field, el) {
+    clearTimeout(_arTimer);
+    _arTimer = setTimeout(() => {
+        let val = el.value.trim().toLowerCase();
+        FILTROS_CONTEM[field] = val || null;
+        // sync paired input (sb <-> sh)
+        const pairs = {
+            'consAntes':  ['cons-antes-input','cons-antes-input-sh'],
+            'consDepois': ['cons-depois-input','cons-depois-input-sh'],
+            'vogAntes':   ['vog-antes-input','vog-antes-input-sh'],
+            'vogDepois':  ['vog-depois-input','vog-depois-input-sh'],
+        };
+        (pairs[field] || []).forEach(id => {
+            let e = document.getElementById(id);
+            if (e && e !== el) e.value = el.value;
+        });
+        processarBusca();
+        _updateFabBadge();
+    }, 300);
+}
+
 function setAcento(val) {
     FILTROS.acentuacao = val;
     _syncFiltrosUI();
@@ -1701,14 +1860,24 @@ function resetFiltros() {
     FILTROS.onsetTonico = null; FILTROS.familiaCluster = null; FILTROS.classe = null; FILTROS.freq = null;
     FILTROS_NEG.acentuacao = false; FILTROS_NEG.classe = false; FILTROS_NEG.freq = false;
     FILTROS_CONTEM.vogais = null; FILTROS_CONTEM.consoantes = null; FILTROS_CONTEM.tolerancia = 0;
-    ['vogais-input','vogais-input-sh','cons-input','cons-input-sh'].forEach(id => {
+    FILTROS_CONTEM.consAntes = null; FILTROS_CONTEM.vogAntes = null;
+    FILTROS_CONTEM.consDepois = null; FILTROS_CONTEM.vogDepois = null;
+    FILTROS_CONTEM.toleranciaAoRedor = 0;
+    buildSilMode = 'eq';
+    ['vogais-input','vogais-input-sh','cons-input','cons-input-sh',
+     'cons-antes-input','cons-antes-input-sh','cons-depois-input','cons-depois-input-sh',
+     'vog-antes-input','vog-antes-input-sh','vog-depois-input','vog-depois-input-sh'].forEach(id => {
         let el = document.getElementById(id); if (el) el.value = '';
     });
     ['tol-val-sb','tol-val-sh'].forEach(id => {
         let el = document.getElementById(id); if (el) el.textContent = 'Exato';
     });
+    ['tol-ar-val-sb','tol-ar-val-sh'].forEach(id => {
+        let el = document.getElementById(id); if (el) el.textContent = '0';
+    });
     FILTRO_TRACOS.clear();
     document.querySelectorAll('[data-traco]').forEach(b => b.classList.remove('sel'));
+    _syncSilModeUI();
     _syncFiltrosUI();
     processarBusca();
     _updateFabBadge();
@@ -2114,6 +2283,15 @@ function _onConsInput(e) {
 }
 document.getElementById('cons-input').addEventListener('input', _onConsInput);
 document.getElementById('cons-input-sh').addEventListener('input', _onConsInput);
+
+document.getElementById('cons-antes-input').addEventListener('input',    e => _onArInput('consAntes',  e.target));
+document.getElementById('cons-antes-input-sh').addEventListener('input', e => _onArInput('consAntes',  e.target));
+document.getElementById('cons-depois-input').addEventListener('input',   e => _onArInput('consDepois', e.target));
+document.getElementById('cons-depois-input-sh').addEventListener('input',e => _onArInput('consDepois', e.target));
+document.getElementById('vog-antes-input').addEventListener('input',     e => _onArInput('vogAntes',   e.target));
+document.getElementById('vog-antes-input-sh').addEventListener('input',  e => _onArInput('vogAntes',   e.target));
+document.getElementById('vog-depois-input').addEventListener('input',    e => _onArInput('vogDepois',  e.target));
+document.getElementById('vog-depois-input-sh').addEventListener('input', e => _onArInput('vogDepois',  e.target));
 
 // Lego pills — click + long press
 let _legoTimer = null, _legoLongFired = false;
