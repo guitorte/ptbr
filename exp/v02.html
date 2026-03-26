@@ -434,7 +434,7 @@ function tratarHiatosVogais(blocoVoc, pLower) {
         let formaHiatoDit   = false;
         if (blocoVoc.length >= 3 && /^[aeo]$/.test(atual.slice(-1))) {
             let prox = blocoVoc[i+1] ? blocoVoc[i+1].toLowerCase() : "";
-            if (/^(iu|ia|io|ie|ui)$/.test(char+prox)) formaHiatoDit = true;
+            if (/^(iu|ui)$/.test(char+prox)) formaHiatoDit = true;
         }
         if (formamDitongo && !temHiatoAcent && !vogaisIdenticas && !ehHiatoFinal && !seguidoDeNh && !seguidoDeNasal && !formaHiatoDit)
             atual += char;
@@ -501,6 +501,23 @@ function identificarTonica(silabas, p) {
 
 function normV(s) {
     return s.toLowerCase().replace(/[áàâ]/g,'a').replace(/[éê]/g,'e').replace(/í/g,'i').replace(/[óô]/g,'o').replace(/[úü]/g,'u');
+}
+
+function ehFinalAmbiguo(silabas) {
+    if (silabas.length < 2) return false;
+    const ult    = silabas[silabas.length - 1];
+    const penult = silabas[silabas.length - 2];
+    if (!/^[^aeiouáàâãéêíóôõúü]*[aeiouáàâãéêíóôõúü]$/.test(ult)) return false;
+    const mv = penult.match(/[aeiouáàâãéêíóôõúü]/gi);
+    if (!mv) return false;
+    const vPenult = normV(mv[mv.length - 1]);
+    const vUlt    = normV(ult.match(/[aeiouáàâãéêíóôõúü]/i)[0]);
+    if (!/^(ia|ie|io|ua|ue|uo|ao|ea|eo|oa|oe)$/.test(vPenult + vUlt)) return false;
+    if (mv.length >= 2) {
+        const par = (normV(mv[mv.length - 2]) + vPenult).toLowerCase();
+        if (/^(ai|au|ei|eu|iu|oi|ou|ui)$/.test(par)) return false;
+    }
+    return true;
 }
 
 const CLUSTER_FAM = {
@@ -735,7 +752,16 @@ function renderChunk() {
         if (alvoAtual && item.score > 0) card.className = `word-card ${BANDAS.find(b => b.key === getBandaKey(item.score)).cls}`;
         else card.className = 'word-card';
         card.dataset.palavra = item.palavra;
-        let sylHtml = item.silabas.map((s, i) => i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s).join('·');
+        let sepFinal = ehFinalAmbiguo(item.silabas) ? ':' : '·';
+        let sils = item.silabas;
+        let sylHtml = sils.map((s, i) => {
+            let part = i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s;
+            if (i < sils.length - 1) {
+                let sep = (i === sils.length - 2 && sepFinal === ':') ? ':' : '·';
+                return part + sep;
+            }
+            return part;
+        }).join('');
         let rhymeTag = (alvoAtual && item.rimaPerfeita) ? `<span class="card-rkey">-${item.rimaPerfeita}</span>` : '';
         card.innerHTML = `<span>${sylHtml}</span>${rhymeTag}`;
         frag.appendChild(card);
