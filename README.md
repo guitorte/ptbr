@@ -19,12 +19,42 @@ On Windows, double-click `start.bat`.
 
 ```
 ptbr/
-├── exp/index.html        # Full application (JS + HTML + CSS, self-contained)
-├── phonetic-engine.js    # IPA consonant distance engine (Chomsky & Halle features)
-└── dic/palavras.txt      # ~320k Portuguese words, one per line
+├── exp/index.html            # Full application (JS + HTML + CSS, self-contained)
+├── phonetic-engine.js        # IPA consonant distance engine (Chomsky & Halle features)
+├── build-corpus.js           # CLI: processes letras_final.json → dic/corpus-schemes.json
+├── rhyme-extract.js          # CLI: extracts rhyme schemes from individual songs
+├── dic/
+│   ├── palavras.txt          # ~320k Portuguese words, one per line
+│   └── corpus-schemes.json   # 474 songs × stanzas, rhyme arrays only (139 KB)
+└── upload/
+    └── letras_final.json     # 478 song lyrics with full text (MPB, Pagode, Sertanejo)
 ```
 
-All logic runs client-side. The dictionary is fetched via HTTP and processed in-memory on first load.
+All application logic runs client-side. The dictionary and corpus index are fetched via HTTP and processed in-memory on first load. Full lyrics are lazy-loaded only when a corpus card is opened.
+
+---
+
+## Features
+
+### Rhyme Finder
+Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the ~320k word dictionary.
+
+### Filters (filter-only mode)
+Search the dictionary without an anchor word using any combination of:
+- Syllable count (equal / less / greater)
+- Accentuation class (oxítona / paroxítona / proparoxítona)
+- Tonic vowel
+- Rhyme ending (rimaPerfeita) — type directly, e.g. `el`, `ão`, `or`
+- Onset of tonic syllable (with fuzzy phonetic tolerance)
+- Vowel pattern, vowel spine, coda consonants
+- Word class (noun, adjective, verb, adverb — via suffix heuristics)
+- Frequency tier (comum / média / rara)
+
+### ESQ Mode — Corpus Catalog
+Click **ESQ** to search the corpus of 474 real song lyrics for stanzas that match the rhyme profile of the typed word. Results show the rhyme scheme of each matching stanza alongside song metadata (title, artist, genre).
+
+### Lyrics Detail View
+Click any ESQ result card to open the full song lyrics. The matching stanza is highlighted in green and scrolled into view. Press **← Voltar** to return to the exact corpus scroll position.
 
 ---
 
@@ -108,9 +138,30 @@ The interface exposes filters for:
 
 ---
 
+## CLI Tools
+
+### Rebuild the corpus index
+
+```bash
+node build-corpus.js
+# Reads upload/letras_final.json → writes dic/corpus-schemes.json
+```
+
+### Extract rhyme schemes from individual songs
+
+```bash
+node rhyme-extract.js --genre MPB
+node rhyme-extract.js --artist "Chico Buarque"
+node rhyme-extract.js --song "Construção" --output full
+node rhyme-extract.js --index 42
+```
+
+---
+
 ## Known Limitations
 
 - Syllabification is rule-based and may fail on loanwords, proper nouns, or unusual clusters.
 - Word class detection uses suffix heuristics — not morphological analysis.
-- The dictionary (`palavras.txt`) is a raw word list with no frequency data; frequency tiers are estimated by word length and suffix patterns.
-- No support for European Portuguese phonology differences.
+- The dictionary (`palavras.txt`) has no frequency data; frequency tiers are estimated from word length and suffix patterns.
+- Corpus stanza matching uses rimaPerfeita string equality — stanzas with identical rhyme arrays are deduplicated per song.
+- No support for European Portuguese phonology.
