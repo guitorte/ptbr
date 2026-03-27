@@ -1209,7 +1209,7 @@ function perfilFonetico(palavra) {
 function calcScore(item, alvo, setOnset, setAssC, lenAssC) {
     let s = 0;
     if (item.rimaPerfeita === alvo.rimaPerfeita) {
-        s += 100;
+        s += 125;
     } else if (alvo.rimaPerfeita.length >= 2) {
         // Levenshtein fonético: pontuação graduada pelo custo de substituição
         const rA = alvo.rimaPerfeita, rB = item.rimaPerfeita;
@@ -1234,9 +1234,9 @@ function calcScore(item, alvo, setOnset, setAssC, lenAssC) {
     }
     if (alvo.vogaisRima && item.vogaisRima === alvo.vogaisRima)      s += 60;
     if (alvo.onsetTonico) {
-        if (item.onsetTonico === alvo.onsetTonico) s += 50;
+        if (item.onsetTonico === alvo.onsetTonico) s += 20;
         else if (item.onsetTonico) {
-            for (let c of item.onsetTonico) if (setOnset.has(c)) { s += 25; break; }
+            for (let c of item.onsetTonico) if (setOnset.has(c)) { s += 10; break; }
         }
     }
     if (alvo.familiaCluster !== 'vz' && alvo.familiaCluster !== 'si'
@@ -1247,7 +1247,7 @@ function calcScore(item, alvo, setOnset, setAssC, lenAssC) {
         let union = lenAssC + item.assConsonantal.length - inter;
         if (union > 0 && inter / union >= 0.5) s += 30;
     }
-    if (alvo.espinhaVocal.length > 1 && item.espinhaVocal === alvo.espinhaVocal) s += 40;
+    if (alvo.espinhaVocal.length > 1 && item.espinhaVocal === alvo.espinhaVocal) s += 20;
     if (alvo.vogalTonica && item.vogalTonica === alvo.vogalTonica) s += 15;
     if (item.numSilabas === alvo.numSilabas && item.acentuacao === alvo.acentuacao) s += 10;
     return s;
