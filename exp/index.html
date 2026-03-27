@@ -415,6 +415,38 @@ body {
   text-align: center; padding: 8px;
 }
 
+/* ═══ CORPUS MODE ═══════════════════════════════════════════ */
+#corpus-viewport {
+  display: none; flex: 1; overflow-y: auto;
+  padding: 10px 10px calc(var(--safe-b) + 10px);
+}
+#corpus-viewport.active { display: block; }
+#corpus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+@media (min-width: 600px) {
+  #corpus-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+.corpus-card {
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: 14px; padding: 11px 12px 10px;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: border-color 0.15s;
+}
+.corpus-card.cc-exact { border-color: var(--c-rima); }
+.corpus-card.cc-near  { border-color: var(--c-qrima); }
+.cr-meta { display: flex; flex-direction: column; gap: 1px; }
+.cr-titulo  { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-artista { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-genero  { font-size: 10px; color: var(--muted); opacity: 0.65; }
+.cr-stanza  { display: flex; flex-direction: column; gap: 2px; }
+.cr-line    { font-size: 13px; font-weight: 500; padding: 1px 3px; border-radius: 4px; }
+.cr-exact   { color: var(--c-rima);  font-weight: 700; background: rgba(39,174,96,0.1); }
+.cr-near    { color: var(--c-qrima); font-weight: 600; background: rgba(22,160,133,0.08); }
+#corpus-count { font-size: 12px; color: var(--muted); padding: 6px 2px 4px; }
+
 /* ═══ FILTER SHEET (mobile) ════════════════════════════════ */
 /* Overlay */
 #sheet-overlay {
@@ -570,6 +602,7 @@ body {
     <button class="topbar-btn" id="btn-intersect" title="Interseção A∩B" aria-label="Busca de interseção" style="font-size:14px;font-weight:800;">∩</button>
     <button class="topbar-btn hidden" id="btn-mic" title="Busca por voz" aria-label="Busca por voz">🎤</button>
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
+    <button class="topbar-btn" id="btn-corpus" title="Esquemas do corpus" aria-label="Buscar esquemas de rima no corpus" style="font-size:13px;font-weight:700;letter-spacing:-0.5px;">ESQ</button>
   </div>
   <div id="rima-express" aria-label="Sugestões rápidas de rima"></div>
   <!-- History dropdown -->
@@ -764,6 +797,11 @@ body {
         </div>
       </div>
       <div id="sentinel"></div>
+    </div>
+    <!-- Corpus viewport (shown in ESQ mode) -->
+    <div id="corpus-viewport">
+      <div id="corpus-count"></div>
+      <div id="corpus-grid"></div>
     </div>
   </div>
 </div>
@@ -1305,6 +1343,129 @@ let FILTROS_CONTEM = {
     consAntes: null, vogAntes: null, consDepois: null, vogDepois: null,
     toleranciaAoRedor: 0,
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   CORPUS (esquemas de rima)
+═══════════════════════════════════════════════════════════════ */
+let corpusEsquemas = null;
+let modoCorpus     = false;
+
+async function carregarCorpus() {
+    if (corpusEsquemas) return;
+    try {
+        const r = await fetch('../dic/corpus-schemes.json');
+        corpusEsquemas = await r.json();
+    } catch(e) {
+        console.error('Corpus not loaded:', e);
+        corpusEsquemas = [];
+    }
+}
+
+function rimaScoreCorpus(rimaItem, rimaAlvo) {
+    if (!rimaItem || !rimaAlvo) return 0;
+    if (rimaItem === rimaAlvo) return 3;
+    // Assonance: same vowel sequence from tonic vowel
+    const vI = normV(rimaItem).replace(/[^aeiou]/g,'');
+    const vA = normV(rimaAlvo).replace(/[^aeiou]/g,'');
+    if (vI === vA && vI.length > 0) return 2;
+    // Phonetic near: same length, 1 diff, liquid/nasal/voicing
+    if (rimaItem.length === rimaAlvo.length && rimaItem.length >= 2) {
+        let diffs = 0, totalCost = 0;
+        for (let i = 0; i < rimaItem.length; i++) {
+            if (rimaItem[i] !== rimaAlvo[i]) { diffs++; totalCost += ptCost(rimaItem[i], rimaAlvo[i]); }
+        }
+        if (diffs === 1 && totalCost < 0.20) return 2;
+        if (diffs === 1 && totalCost < 0.35) return 1;
+    }
+    // Levenshtein-1 for length-different endings
+    if (Math.abs(rimaItem.length - rimaAlvo.length) === 1 && levenshtein(rimaItem, rimaAlvo) === 1) return 1;
+    return 0;
+}
+
+function buscarCorpus(alvo) {
+    if (!corpusEsquemas || !alvo) return [];
+    const rimaAlvo = alvo.rimaPerfeita;
+    let results = [];
+    for (let item of corpusEsquemas) {
+        for (let stanza of item.s) {
+            let maxScore = 0, exactCount = 0, nearCount = 0;
+            for (let r of stanza) {
+                let sc = rimaScoreCorpus(r, rimaAlvo);
+                if (sc > maxScore) maxScore = sc;
+                if (sc === 3) exactCount++;
+                else if (sc >= 2) nearCount++;
+            }
+            if (maxScore >= 2) {
+                results.push({ a: item.a, t: item.t, g: item.g, stanza, maxScore, exactCount, nearCount });
+            }
+        }
+    }
+    results.sort((a, b) => {
+        if (b.maxScore    !== a.maxScore)    return b.maxScore    - a.maxScore;
+        if (b.exactCount  !== a.exactCount)  return b.exactCount  - a.exactCount;
+        return b.nearCount - a.nearCount;
+    });
+    return results;
+}
+
+function renderCorpus(results) {
+    const grid  = document.getElementById('corpus-grid');
+    const count = document.getElementById('corpus-count');
+    grid.innerHTML = '';
+    if (!alvoAtual) {
+        count.textContent = '';
+        grid.innerHTML = '<div class="empty-state">Digite uma palavra para buscar esquemas no corpus.</div>';
+        return;
+    }
+    if (!corpusEsquemas) {
+        count.textContent = '';
+        grid.innerHTML = '<div class="empty-state"><span class="loader"></span>Carregando corpus…</div>';
+        return;
+    }
+    if (!results.length) {
+        count.textContent = '';
+        grid.innerHTML = '<div class="empty-state">Nenhum esquema encontrado para esta rima.</div>';
+        return;
+    }
+    const rimaAlvo = alvoAtual.rimaPerfeita;
+    count.textContent = `${results.length.toLocaleString('pt-BR')} esquema${results.length !== 1 ? 's' : ''} encontrado${results.length !== 1 ? 's' : ''}`;
+    const frag = document.createDocumentFragment();
+    for (let r of results) {
+        let card = document.createElement('div');
+        let topCls = r.maxScore === 3 ? 'cc-exact' : 'cc-near';
+        card.className = `corpus-card ${topCls}`;
+        let linesHtml = r.stanza.map(rima => {
+            let sc = rimaScoreCorpus(rima, rimaAlvo);
+            let cls = sc === 3 ? 'cr-exact' : sc >= 2 ? 'cr-near' : '';
+            return `<div class="cr-line ${cls}">-${rima}</div>`;
+        }).join('');
+        card.innerHTML =
+            `<div class="cr-meta">
+               <span class="cr-titulo">${r.t}</span>
+               <span class="cr-artista">${r.a}</span>
+               <span class="cr-genero">${r.g}</span>
+             </div>
+             <div class="cr-stanza">${linesHtml}</div>`;
+        frag.appendChild(card);
+    }
+    grid.appendChild(frag);
+}
+
+function toggleCorpusMode() {
+    modoCorpus = !modoCorpus;
+    document.getElementById('btn-corpus').classList.toggle('active', modoCorpus);
+    document.getElementById('viewport').style.display       = modoCorpus ? 'none' : '';
+    document.getElementById('subbar').style.display         = modoCorpus ? 'none' : '';
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.style.display = modoCorpus ? 'none' : '';
+    document.getElementById('corpus-viewport').classList.toggle('active', modoCorpus);
+    if (modoCorpus) {
+        carregarCorpus().then(() => {
+            if (alvoAtual) renderCorpus(buscarCorpus(alvoAtual));
+            else renderCorpus([]);
+        });
+    }
+}
 let FILTRO_TRACOS  = new Set(); // traços fonéticos exigidos na coda
 // tolerancia: 0=exato, 1=tier≤1 (sonoridade), 2=tier≤2 (r/l, m/n)
 
@@ -1732,9 +1893,14 @@ function setAlvoPalavra(palavra) {
     FILTRO_BANDAS.clear();
     document.getElementById('input-a').value = palavra;
     document.getElementById('btn-clear-a').classList.remove('hidden');
-    // Close intersect if open
     _closeIntersect();
     _addToHistorico(palavra);
+    if (modoCorpus) {
+        carregarCorpus().then(() => renderCorpus(buscarCorpus(alvoAtual)));
+        closeHistDropdown();
+        if (navigator.vibrate) navigator.vibrate(30);
+        return;
+    }
     renderLegoBar();
     processarBusca();
     document.getElementById('viewport').scrollTo({ top: 0, behavior: 'smooth' });
@@ -2252,6 +2418,7 @@ document.getElementById('hist-list').addEventListener('click', e => {
     if (item) { setAlvoPalavra(item.dataset.hist); closeHistDropdown(); }
 });
 document.getElementById('btn-hist').addEventListener('click', toggleHistDropdown);
+document.getElementById('btn-corpus').addEventListener('click', toggleCorpusMode);
 document.addEventListener('pointerdown', e => {
     if (!e.target.closest('#hist-dropdown') && !e.target.closest('#btn-hist'))
         closeHistDropdown();
