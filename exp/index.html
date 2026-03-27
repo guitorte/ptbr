@@ -269,7 +269,7 @@ body {
 /* ═══ RESULTS ZONE ═══════════════════════════════════════════ */
 #results-zone {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
-  min-width: 0;
+  min-width: 0; position: relative;
 }
 
 /* Subbar: band chips + lego pills */
@@ -446,6 +446,42 @@ body {
 .cr-exact   { color: var(--c-rima);  font-weight: 700; background: rgba(39,174,96,0.1); }
 .cr-near    { color: var(--c-qrima); font-weight: 600; background: rgba(22,160,133,0.08); }
 #corpus-count { font-size: 12px; color: var(--muted); padding: 6px 2px 4px; }
+
+/* ═══ LYRICS PANEL ══════════════════════════════════════════ */
+#lyrics-panel {
+  display: none; flex-direction: column;
+  position: absolute; inset: 0; z-index: 10;
+  background: var(--bg); overflow: hidden;
+}
+#lyrics-panel.active { display: flex; }
+#lyrics-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg); flex-shrink: 0;
+  position: sticky; top: 0; z-index: 1;
+}
+#btn-back-lyrics {
+  background: none; border: 1px solid var(--border); color: var(--fg);
+  border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer;
+  flex-shrink: 0;
+}
+#btn-back-lyrics:hover { background: var(--hover); }
+#lyrics-title-block { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+#lyrics-titulo  { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lyrics-artista { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lyrics-genero  { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+#lyrics-body {
+  flex: 1; overflow-y: auto; padding: 16px 14px calc(var(--safe-b) + 16px);
+}
+.lyric-stanza {
+  margin-bottom: 18px; padding: 8px 10px; border-radius: 6px;
+  line-height: 1.6; font-size: 13px; border-left: 3px solid transparent;
+}
+.lyric-stanza span { display: block; }
+.lyric-stanza-match {
+  border-left: 3px solid var(--c-rima);
+  background: rgba(39,174,96,0.08);
+}
 
 /* ═══ FILTER SHEET (mobile) ════════════════════════════════ */
 /* Overlay */
@@ -802,6 +838,18 @@ body {
     <div id="corpus-viewport">
       <div id="corpus-count"></div>
       <div id="corpus-grid"></div>
+    </div>
+    <!-- Lyrics detail panel (shown when a corpus card is clicked) -->
+    <div id="lyrics-panel">
+      <div id="lyrics-header">
+        <button id="btn-back-lyrics" onclick="fecharLetra()" aria-label="Voltar">← Voltar</button>
+        <div id="lyrics-title-block">
+          <span id="lyrics-titulo"></span>
+          <span id="lyrics-artista"></span>
+        </div>
+        <span id="lyrics-genero"></span>
+      </div>
+      <div id="lyrics-body"></div>
     </div>
   </div>
 </div>
@@ -1446,13 +1494,88 @@ function renderCorpus(results) {
                <span class="cr-genero">${r.g}</span>
              </div>
              <div class="cr-stanza">${linesHtml}</div>`;
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => abrirLetra(r));
         frag.appendChild(card);
     }
     grid.appendChild(frag);
 }
 
+/* ── Lyrics detail panel ─────────────────────────────────── */
+let letrasDict   = null;   // Map: "Artista§Titulo" → letra string
+let corpusScrollY = 0;     // saved scroll position for back-navigation
+
+async function carregarLetras() {
+    if (letrasDict) return;
+    const resp  = await fetch('../upload/letras_final.json');
+    const songs = await resp.json();
+    letrasDict  = new Map(songs.map(s => [`${s.artista}§${s.titulo}`, s.letra]));
+}
+
+function lastWordOfLine(line) {
+    const clean  = line.replace(/\(.*?\)/g, '').trim();
+    const tokens = clean.split(/\s+/);
+    for (let i = tokens.length - 1; i >= 0; i--) {
+        const w = tokens[i].replace(/[()[\]!?,.:;"'«»\-–—\/\\]/g, '').trim();
+        if (w && /[aeiouáàâãéêíóôõúü]/i.test(w)) return w;
+    }
+    return null;
+}
+
+async function abrirLetra(r) {
+    await carregarLetras();
+    const letra = letrasDict.get(`${r.a}§${r.t}`);
+    if (!letra) return;
+
+    // Save scroll position before leaving corpus view
+    corpusScrollY = document.getElementById('corpus-viewport').scrollTop;
+
+    // Build stanza key from this result's rima array
+    const stanzaKey = r.stanza.join('|');
+    let matchIdx    = -1;
+    const stanzaBlocks = letra.split(/\n{2,}/).map((block, i) => {
+        const lines = block.trim().split('\n').filter(Boolean);
+        const rimas = lines.map(l => {
+            const w = lastWordOfLine(l);
+            if (!w) return null;
+            const p = perfilFonetico(w);
+            return p ? p.rimaPerfeita : null;
+        }).filter(Boolean);
+        const isMatch = matchIdx === -1 && rimas.join('|') === stanzaKey;
+        if (isMatch) matchIdx = i;
+        const cls = isMatch ? 'lyric-stanza lyric-stanza-match' : 'lyric-stanza';
+        const linesHtml = lines.map(l => `<span>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`).join('');
+        return `<div class="${cls}" id="lyric-stanza-${i}">${linesHtml}</div>`;
+    });
+
+    document.getElementById('lyrics-titulo').textContent  = r.t;
+    document.getElementById('lyrics-artista').textContent = r.a;
+    document.getElementById('lyrics-genero').textContent  = r.g || '';
+    document.getElementById('lyrics-body').innerHTML      = stanzaBlocks.join('');
+
+    // Switch to lyrics panel
+    document.getElementById('corpus-viewport').classList.remove('active');
+    document.getElementById('lyrics-panel').classList.add('active');
+
+    // Scroll matched stanza into view
+    if (matchIdx >= 0) {
+        const el = document.getElementById(`lyric-stanza-${matchIdx}`);
+        if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+    }
+}
+
+function fecharLetra() {
+    document.getElementById('lyrics-panel').classList.remove('active');
+    document.getElementById('corpus-viewport').classList.add('active');
+    requestAnimationFrame(() => {
+        document.getElementById('corpus-viewport').scrollTop = corpusScrollY;
+    });
+}
+
 function toggleCorpusMode() {
     modoCorpus = !modoCorpus;
+    // If leaving corpus mode, close lyrics panel first
+    if (!modoCorpus) document.getElementById('lyrics-panel').classList.remove('active');
     document.getElementById('btn-corpus').classList.toggle('active', modoCorpus);
     document.getElementById('viewport').style.display       = modoCorpus ? 'none' : '';
     document.getElementById('subbar').style.display         = modoCorpus ? 'none' : '';
