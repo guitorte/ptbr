@@ -620,6 +620,12 @@ body {
       </div>
     </div>
     <div class="sb-section">
+      <span class="sb-label">Rima (terminação tônica)</span>
+      <input id="rima-input" class="sb-input" type="text"
+             placeholder="el, or, ão, ente…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="sb-section">
       <span class="sb-label">Onset tônico</span>
       <input id="onset-input" class="sb-input" type="text"
              placeholder="tr, pr, fl, s, r…"
@@ -807,6 +813,12 @@ body {
         <button class="v-btn" data-vogal="o" onclick=\"setVogal('o')">O</button>
         <button class="v-btn" data-vogal="u" onclick=\"setVogal('u')">U</button>
       </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Rima (terminação tônica)</span>
+      <input id="rima-input-sh" class="sb-input" type="text"
+             placeholder="el, or, ão, ente…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
     </div>
     <div class="sh-section">
       <span class="sh-label">Onset tônico</span>
@@ -1358,7 +1370,9 @@ async function indexarDicionario() {
    5. PROCESSAMENTO CENTRAL
 ═══════════════════════════════════════════════════════════════ */
 function processarBusca() {
-    let temCriterio = alvoAtual !== null || Object.values(FILTROS).some(v => v !== null);
+    let temCriterio = alvoAtual !== null
+        || Object.values(FILTROS).some(v => v !== null)
+        || Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
     if (!temCriterio) {
         resultadosFiltrados = [];
         renderResultados();
@@ -1539,7 +1553,20 @@ const DEF_BLOCOS = [
 
 function renderLegoBar() {
     let bar = document.getElementById('lego-bar');
-    if (!alvoAtual) { bar.innerHTML = ''; return; }
+    if (!alvoAtual) {
+        bar.innerHTML = DEF_BLOCOS.map(def => {
+            let val = FILTROS[def.id];
+            if (val === null || !def.show(val)) return '';
+            let negated = FILTROS_NEG[def.id];
+            let cls = negated ? ' negated' : ' locked';
+            let prefix = negated ? '≠ ' : '🔒 ';
+            return `<button class="lego-pill${cls}" data-lego="${def.id}"
+                        role="switch" aria-checked="true"
+                        aria-label="${negated ? 'Excluir' : 'Ativo'}: ${def.label(val)}"
+                    >${prefix}${def.label(val)}</button>`;
+        }).join('');
+        return;
+    }
     bar.innerHTML = DEF_BLOCOS.map(def => {
         let val = alvoAtual[def.id];
         if (!def.show(val)) return '';
@@ -1555,7 +1582,23 @@ function renderLegoBar() {
 }
 
 function toggleLego(id) {
-    if (!alvoAtual) return;
+    if (!alvoAtual) {
+        FILTROS[id] = null; FILTROS_NEG[id] = false;
+        if (id === 'numSilabas') {
+            buildSilabas = 0; buildSilMode = 'eq'; _syncSilModeUI();
+            ['step-val','step-val-sh'].forEach(i => {
+                let el = document.getElementById(i);
+                if (el) el.textContent = 'Qualquer';
+            });
+        }
+        if (id === 'rimaPerfeita') {
+            ['rima-input','rima-input-sh'].forEach(i => {
+                let el = document.getElementById(i); if (el) el.value = '';
+            });
+        }
+        if (navigator.vibrate) navigator.vibrate(15);
+        renderLegoBar(); processarBusca(); return;
+    }
     let wasLocked = FILTROS[id] !== null;
     FILTROS[id]     = wasLocked ? null : alvoAtual[id];
     FILTROS_NEG[id] = false;
@@ -1573,7 +1616,12 @@ function toggleLego(id) {
     processarBusca();
 }
 function negarLego(id) {
-    if (!alvoAtual) return;
+    if (!alvoAtual) {
+        if (FILTROS_NEG[id]) { FILTROS[id] = null; FILTROS_NEG[id] = false; }
+        else { FILTROS_NEG[id] = true; }
+        if (navigator.vibrate) navigator.vibrate([10,30,70]);
+        renderLegoBar(); processarBusca(); return;
+    }
     if (FILTROS_NEG[id]) {
         FILTROS[id] = null; FILTROS_NEG[id] = false;
     } else {
@@ -1599,7 +1647,8 @@ function _updateCountBar() {
     let bar = document.getElementById('count-bar');
     if (alvoAtual) { bar.classList.remove('visible'); return; }
     let n = resultadosFiltrados.length;
-    let hasFiltro = Object.values(FILTROS).some(v => v !== null);
+    let hasFiltro = Object.values(FILTROS).some(v => v !== null)
+        || Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
     if (!hasFiltro || n === 0) { bar.classList.remove('visible'); return; }
     bar.textContent = `${n.toLocaleString('pt-BR')} palavra${n !== 1 ? 's' : ''}`;
     bar.classList.add('visible');
@@ -1613,9 +1662,14 @@ function _rebuildGrid() {
     if (iObserver) { iObserver.disconnect(); iObserver = null; }
 
     if (resultadosVisiveis.length === 0) {
-        let msg = resultadosFiltrados.length === 0
-            ? 'Nenhuma palavra atende a estes critérios.<br><span style="font-size:13px">Ajuste os filtros ou limpe os blocos travados.</span>'
-            : 'Nenhuma faixa selecionada tem resultados.<br><span style="font-size:13px">Clique em <b>limpar filtro</b> no espectro.</span>';
+        let isVirgin = !alvoAtual
+            && !Object.values(FILTROS).some(v => v !== null)
+            && !Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
+        let msg = isVirgin
+            ? 'Digite uma palavra para encontrar rimas,<br><span style="font-size:13px">ou use os filtros para explorar o dicionário.</span>'
+            : resultadosFiltrados.length === 0
+                ? 'Nenhuma palavra atende a estes critérios.<br><span style="font-size:13px">Ajuste os filtros ou limpe os blocos travados.</span>'
+                : 'Nenhuma faixa selecionada tem resultados.<br><span style="font-size:13px">Clique em <b>limpar filtro</b> no espectro.</span>';
         grid.innerHTML = `<div class="empty-state">${msg}</div>`;
         requestAnimationFrame(() => grid.classList.remove('fading'));
         return;
@@ -1814,6 +1868,22 @@ function setVogal(v) {
     _updateFabBadge();
 }
 
+let _rimaTimer;
+function _onRimaInput(e) {
+    clearTimeout(_rimaTimer);
+    _rimaTimer = setTimeout(() => {
+        let val = e.target.value.trim().toLowerCase().replace(/^-/, '');
+        FILTROS.rimaPerfeita = val || null;
+        FILTROS_NEG.rimaPerfeita = false;
+        ['rima-input','rima-input-sh'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el && el !== e.target) el.value = e.target.value;
+        });
+        processarBusca();
+        _updateFabBadge();
+    }, 300);
+}
+
 let _onsetTimer;
 function _onOnsetInput(e) {
     clearTimeout(_onsetTimer);
@@ -1916,6 +1986,11 @@ function _syncFiltrosUI() {
     document.querySelectorAll('[data-negkey]').forEach(b => {
         let key = b.getAttribute('data-negkey');
         b.classList.toggle('active', !!FILTROS_NEG[key] && FILTROS[key] !== null);
+    });
+    // Rima inputs
+    ['rima-input','rima-input-sh'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.value = FILTROS.rimaPerfeita || '';
     });
     // Onset inputs
     ['onset-input','onset-input-sh'].forEach(id => {
@@ -2245,6 +2320,10 @@ document.getElementById('btn-intersect').addEventListener('click', () => {
     if (!alvoAtual) return;
     toggleIntersect();
 });
+
+// Rima inputs
+document.getElementById('rima-input').addEventListener('input', _onRimaInput);
+document.getElementById('rima-input-sh').addEventListener('input', _onRimaInput);
 
 // Onset inputs
 document.getElementById('onset-input').addEventListener('input', _onOnsetInput);
