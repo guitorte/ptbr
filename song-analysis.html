@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eco Sonoro | Análise Fonética de Letras</title>
+<style>
+:root {
+  --bg: #F0F3F4;
+  --surface: #FFFFFF;
+  --border: #DFE6EC;
+  --text: #2C3E50;
+  --muted: #7F8C8D;
+  --accent: #E74C3C;
+  --syl-text: #1a1a1a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #181C20;
+    --surface: #23282E;
+    --border: #3A4048;
+    --text: #D5DBE0;
+    --muted: #8A949E;
+    --accent: #E74C3C;
+    --syl-text: #1a1a1a;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh;
+}
+header {
+  padding: 20px 24px 12px;
+  text-align: center;
+}
+header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+header p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+}
+
+/* Input section */
+#input-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+#lyrics-input {
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+#lyrics-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+#controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+#analyze-btn {
+  padding: 8px 24px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#analyze-btn:hover { opacity: 0.9; }
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.control-group input[type=range] { width: 80px; }
+.control-group span.val { font-weight: 600; color: var(--text); min-width: 14px; text-align: center; }
+
+/* Output */
+#output-section { display: none; }
+#output-section.visible { display: block; }
+
+#song-display {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  font-size: 17px;
+  line-height: 2.2;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.line { display: block; min-height: 1em; }
+.line.blank { height: 0.6em; }
+.word { display: inline; }
+.word .sep { color: var(--muted); font-size: 11px; padding: 0 0.5px; opacity: 0.5; user-select: none; }
+.syl {
+  display: inline;
+  border-radius: 3px;
+  padding: 2px 1px;
+  cursor: default;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+.syl.colored {
+  color: var(--syl-text);
+  padding: 2px 3px;
+}
+.syl.tonica { font-weight: 700; }
+
+/* Hover / selection states */
+body.has-active .syl.colored { opacity: 0.25; }
+body.has-active .syl.colored.active { opacity: 1; box-shadow: 0 0 0 2px rgba(0,0,0,0.3); }
+body.has-active .syl:not(.colored) { opacity: 0.4; }
+
+/* Legend */
+#legend {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+#legend h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+#legend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: opacity 0.15s, border-color 0.15s;
+  color: var(--syl-text);
+  user-select: none;
+}
+.legend-chip .count { font-size: 11px; opacity: 0.6; }
+.legend-chip:hover { border-color: rgba(0,0,0,0.3); }
+.legend-chip.selected { border-color: rgba(0,0,0,0.5); box-shadow: 0 0 4px rgba(0,0,0,0.15); }
+body.has-active .legend-chip { opacity: 0.4; }
+body.has-active .legend-chip.selected { opacity: 1; }
+
+/* Stats */
+#stats {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Eco Sonoro</h1>
+  <p>Análise fonética de letras — colorização por similaridade silábica</p>
+</header>
+<main>
+  <section id="input-section">
+    <textarea id="lyrics-input" placeholder="Cole a letra da música aqui...">Na volta do cabelo dele
+Todo vento treme
+Toda areia voa
+Todo mar escorre e escoa
+
+Dentro daquela canoa
+Dentro daquela piscina
+Todo tom combina
+Todo tom ressoa
+
+Tempestades, aves, ondas
+Dentro da praia redonda
+
+Desenhar no chão da praia
+Um coração de areia
+E ver que a maré cheia
+Leva tudo ao fim
+
+Mergulhar no espelho d'água
+De quem quer que for
+E ver quem quer que o amor
+Quiser trazer pra mim
+
+Emular o mar e navegar
+Até chegar nalgum lugar</textarea>
+    <div id="controls">
+      <button id="analyze-btn">Analisar</button>
+      <div class="control-group">
+        <label for="min-group">Grupo mín:</label>
+        <input type="range" id="min-group" min="2" max="6" value="2">
+        <span class="val" id="min-group-val">2</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="output-section">
+    <div id="song-display"></div>
+    <div id="legend">
+      <h3>Grupos sonoros</h3>
+      <div id="legend-list"></div>
+    </div>
+    <div id="stats"></div>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════
+   MOTOR FONÉTICO (copiado de exp/index.html)
+═══════════════════════════════════════════════════════════════ */
+const vRegex = /[aeiouáàâãéêíóôõúü]/i;
+
+function normV(s) {
+    return s.toLowerCase()
+        .replace(/[áàâ]/g,'a').replace(/[éê]/g,'e').replace(/í/g,'i')
+        .replace(/[óô]/g,'o').replace(/[úü]/g,'u');
+}
+
+function tratarHiatosVogais(blocoVoc, pLower) {
+    if (blocoVoc.length <= 1) return [blocoVoc];
+    let resultado = [], atual = blocoVoc[0];
+    for (let i = 1; i < blocoVoc.length; i++) {
+        let char = blocoVoc[i], par = (atual.slice(-1) + char).toLowerCase();
+        let formamDitongo   = /^(ai|au|ei|eu|iu|oi|ou|ui|ão|õe|ãe)$/.test(par);
+        let vogaisIdenticas = par[0] === par[1];
+        let temHiatoAcent   = /[aeiouáéíóúâêôãõü][íú]/.test(par);
+        let ehHiatoFinal    = /^(ai|ui|au|oe)$/.test(par) &&
+                              (pLower.endsWith(par+"r")||pLower.endsWith(par+"z")||pLower.endsWith(par+"l"));
+        let seguidoDeNh     = pLower.includes(par+"nh");
+        let pos = pLower.indexOf(par);
+        let seguidoDeNasal  = pos >= 0 && pLower[pos+2] === 'n' && pos+3 < pLower.length && !vRegex.test(pLower[pos+3]);
+        let formaHiatoDit   = false;
+        if (blocoVoc.length >= 3 && /^[aeo]$/.test(atual.slice(-1))) {
+            let prox = blocoVoc[i+1] ? blocoVoc[i+1].toLowerCase() : "";
+            if (/^(iu|ui)$/.test(char+prox)) formaHiatoDit = true;
+        }
+        if (formamDitongo && !temHiatoAcent && !vogaisIdenticas && !ehHiatoFinal && !seguidoDeNh && !seguidoDeNasal && !formaHiatoDit)
+            atual += char;
+        else { resultado.push(atual); atual = char; }
+    }
+    resultado.push(atual);
+    return resultado;
+}
+
+function separarConsoantes(cBlock) {
+    if (cBlock.length <= 1) return ["", cBlock];
+    let tL = cBlock.toLowerCase();
+    if (cBlock.length === 2) {
+        if (/^(ch|lh|nh|gu|qu|br|cr|dr|fr|gr|pr|tr|vr|bl|cl|fl|gl|pl|tl)$/.test(tL)) return ["", cBlock];
+        return [cBlock.slice(0,1), cBlock.slice(1)];
+    }
+    if (/^(ch|lh|nh|gu|qu|br|cr|dr|fr|gr|pr|tr|vr|bl|cl|fl|gl|pl|tl)$/.test(tL.slice(-2)))
+        return [cBlock.slice(0,-2), cBlock.slice(-2)];
+    return [cBlock.slice(0,-1), cBlock.slice(-1)];
+}
+
+function silabificar(palavra) {
+    let blocos = [], tipoAt = '', textoAt = '';
+    for (let i = 0; i < palavra.length; i++) {
+        let ch = palavra[i], chL = ch.toLowerCase();
+        if ((chL==='q'||chL==='g') && palavra[i+1] && palavra[i+1].toLowerCase()==='u'
+            && palavra[i+2] && vRegex.test(palavra[i+2])) {
+            if (tipoAt==='V') { blocos.push({tipo:'V',texto:textoAt}); textoAt=''; }
+            blocos.push({tipo:'C',texto:ch+palavra[i+1]}); i++; tipoAt=''; continue;
+        }
+        let tipo = vRegex.test(ch) ? 'V' : 'C';
+        if (tipo !== tipoAt) { if (textoAt) blocos.push({tipo:tipoAt,texto:textoAt}); tipoAt=tipo; textoAt=ch; }
+        else textoAt += ch;
+    }
+    if (textoAt) blocos.push({tipo:tipoAt,texto:textoAt});
+    let bExp = [];
+    for (let b of blocos) {
+        if (b.tipo==='V') tratarHiatosVogais(b.texto, palavra.toLowerCase()).forEach(v=>bExp.push({tipo:'V',texto:v}));
+        else bExp.push(b);
+    }
+    let idxV = bExp.reduce((a,b,i)=>(b.tipo==='V'?[...a,i]:a),[]);
+    if (!idxV.length) return [palavra];
+    let sil = new Array(idxV.length).fill("");
+    for (let i=0; i<idxV[0]; i++) sil[0] += bExp[i].texto;
+    for (let k=0; k<idxV.length-1; k++) {
+        sil[k] += bExp[idxV[k]].texto;
+        let cT=""; for (let j=idxV[k]+1; j<idxV[k+1]; j++) cT+=bExp[j].texto;
+        let [esq,dir] = separarConsoantes(cT); sil[k]+=esq; sil[k+1]+=dir;
+    }
+    let uV = idxV[idxV.length-1];
+    sil[sil.length-1] += bExp[uV].texto;
+    for (let i=uV+1; i<bExp.length; i++) sil[sil.length-1]+=bExp[i].texto;
+    return sil;
+}
+
+function identificarTonica(silabas, p) {
+    let t = p.toLowerCase();
+    for (let i=0;i<silabas.length;i++) if(/[áéíóúâêô]/i.test(silabas[i])) return i;
+    for (let i=0;i<silabas.length;i++) if(/[ãõ]/i.test(silabas[i])) return i;
+    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|um|uns)$/)) return silabas.length-1;
+    if (t.match(/(a|as|e|es|o|os|am|em|ens)$/))        return Math.max(0,silabas.length-2);
+    return Math.max(0,silabas.length-2);
+}
+
+function calcOnset(sil) {
+    let m = sil.match(/^([^aeiouáàâãéêíóôõúü]*)/i);
+    return m ? m[1].toLowerCase() : '';
+}
+
+function extrairRima(sil, ti) {
+    let pf = sil.slice(ti).join(''), m = pf.match(vRegex);
+    return m ? pf.slice(m.index).toLowerCase() : pf.toLowerCase();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EXTRAÇÃO DO RIME (núcleo+coda) DE CADA SÍLABA
+═══════════════════════════════════════════════════════════════ */
+function sylRime(syl) {
+    let m = syl.match(vRegex);
+    if (!m) return syl.toLowerCase();
+    return normV(syl.slice(m.index));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PALETA DE CORES
+═══════════════════════════════════════════════════════════════ */
+const PALETTE = [
+    '#F87171','#FB923C','#FBBF24','#A3E635','#34D399',
+    '#22D3EE','#60A5FA','#A78BFA','#E879F9','#FB7185',
+    '#FDBA74','#FDE047','#86EFAC','#67E8F9','#93C5FD',
+    '#C4B5FD','#F0ABFC','#FDA4AF','#FCA5A5','#FCD34D',
+    '#6EE7B7','#5EEAD4','#7DD3FC','#D8B4FE','#F9A8D4',
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   LIMPEZA DE PALAVRA
+═══════════════════════════════════════════════════════════════ */
+function cleanWord(raw) {
+    return raw
+        .replace(/[()[\]!?,.:;"'«»\-–—\/\\]/g, '')
+        .replace(/'/g, '')
+        .replace(/\s+/g, '')
+        .trim();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ANÁLISE PRINCIPAL
+═══════════════════════════════════════════════════════════════ */
+let activeGroup = null;
+
+function analyzeLyrics(text, minGroup) {
+    let lines = text.split('\n');
+    // allSyls: flat list of every syllable reference for grouping
+    let allSyls = [];
+    let structure = []; // [{type:'line', tokens:[{type:'word',syls,tonica,rimeKeys}|{type:'space'}|{type:'punct',text}]}]
+
+    for (let line of lines) {
+        if (!line.trim()) {
+            structure.push({ type: 'blank' });
+            continue;
+        }
+        let tokens = [];
+        // Split preserving spaces and punctuation
+        let parts = line.match(/[a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ'']+|[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ'']+/gi) || [];
+        for (let part of parts) {
+            if (!vRegex.test(part)) {
+                tokens.push({ type: 'other', text: part });
+                continue;
+            }
+            let cleaned = cleanWord(part);
+            if (!cleaned || !vRegex.test(cleaned)) {
+                tokens.push({ type: 'other', text: part });
+                continue;
+            }
+            let sils = silabificar(cleaned.toLowerCase());
+            let ti = identificarTonica(sils, cleaned);
+            let sylData = sils.map((s, i) => {
+                let rime = sylRime(s);
+                let ref = { text: s, rime: rime, isTonica: i === ti, group: null, el: null };
+                allSyls.push(ref);
+                return ref;
+            });
+            tokens.push({ type: 'word', syls: sylData, original: part });
+        }
+        structure.push({ type: 'line', tokens: tokens });
+    }
+
+    // Group by rime
+    let rimeMap = new Map();
+    for (let ref of allSyls) {
+        if (!rimeMap.has(ref.rime)) rimeMap.set(ref.rime, []);
+        rimeMap.get(ref.rime).push(ref);
+    }
+
+    // Filter by min group size, sort by count descending
+    let groups = [];
+    for (let [rime, refs] of rimeMap) {
+        if (refs.length >= minGroup) {
+            groups.push({ rime, refs, color: null });
+        }
+    }
+    groups.sort((a, b) => b.refs.length - a.refs.length);
+
+    // Assign colors
+    for (let i = 0; i < groups.length; i++) {
+        groups[i].color = PALETTE[i % PALETTE.length];
+        for (let ref of groups[i].refs) {
+            ref.group = groups[i];
+        }
+    }
+
+    return { structure, groups };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDERIZAÇÃO
+═══════════════════════════════════════════════════════════════ */
+function render(result) {
+    let display = document.getElementById('song-display');
+    let legendList = document.getElementById('legend-list');
+    let stats = document.getElementById('stats');
+    document.getElementById('output-section').classList.add('visible');
+
+    // Build song display
+    let html = '';
+    for (let item of result.structure) {
+        if (item.type === 'blank') {
+            html += '<span class="line blank"></span>';
+            continue;
+        }
+        html += '<span class="line">';
+        for (let tok of item.tokens) {
+            if (tok.type === 'other') {
+                html += escHtml(tok.text);
+                continue;
+            }
+            // word
+            html += '<span class="word">';
+            for (let i = 0; i < tok.syls.length; i++) {
+                let s = tok.syls[i];
+                let cls = 'syl';
+                if (s.isTonica) cls += ' tonica';
+                let style = '';
+                if (s.group) {
+                    cls += ' colored';
+                    style = ` style="background:${s.group.color}"`;
+                }
+                let id = `syl-${Math.random().toString(36).slice(2,8)}`;
+                s._id = id;
+                html += `<span class="${cls}" id="${id}" data-rime="${escAttr(s.rime)}"${style}>${escHtml(s.text)}</span>`;
+                if (i < tok.syls.length - 1) {
+                    html += '<span class="sep">\u00B7</span>';
+                }
+            }
+            html += '</span>';
+        }
+        html += '</span>';
+    }
+    display.innerHTML = html;
+
+    // Legend
+    legendList.innerHTML = '';
+    for (let g of result.groups) {
+        let chip = document.createElement('span');
+        chip.className = 'legend-chip';
+        chip.style.background = g.color;
+        chip.dataset.rime = g.rime;
+        chip.innerHTML = `<strong>-${escHtml(g.rime)}</strong> <span class="count">(${g.refs.length})</span>`;
+        chip.addEventListener('click', () => toggleGroup(g.rime));
+        chip.addEventListener('mouseenter', () => highlightGroup(g.rime));
+        chip.addEventListener('mouseleave', () => clearHighlight());
+        legendList.appendChild(chip);
+    }
+
+    // Stats
+    let totalSyls = 0, coloredSyls = 0;
+    for (let item of result.structure) {
+        if (item.type !== 'line') continue;
+        for (let tok of item.tokens) {
+            if (tok.type !== 'word') continue;
+            totalSyls += tok.syls.length;
+            coloredSyls += tok.syls.filter(s => s.group).length;
+        }
+    }
+    stats.textContent = `${result.groups.length} grupos sonoros \u00B7 ${coloredSyls} de ${totalSyls} s\u00edlabas coloridas`;
+
+    // Wire hover on syllables
+    display.querySelectorAll('.syl.colored').forEach(el => {
+        el.addEventListener('mouseenter', () => highlightGroup(el.dataset.rime));
+        el.addEventListener('mouseleave', () => clearHighlight());
+        el.addEventListener('click', () => toggleGroup(el.dataset.rime));
+    });
+}
+
+function highlightGroup(rime) {
+    if (activeGroup) return; // locked selection takes priority
+    document.body.classList.add('has-active');
+    document.querySelectorAll(`.syl.colored[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('active'));
+    document.querySelectorAll(`.legend-chip[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('selected'));
+}
+
+function clearHighlight() {
+    if (activeGroup) return;
+    document.body.classList.remove('has-active');
+    document.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+}
+
+function toggleGroup(rime) {
+    if (activeGroup === rime) {
+        activeGroup = null;
+        document.body.classList.remove('has-active');
+        document.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+    } else {
+        activeGroup = rime;
+        document.body.classList.add('has-active');
+        document.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+        document.querySelectorAll(`.syl.colored[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('active'));
+        document.querySelectorAll(`.legend-chip[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('selected'));
+    }
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+/* ═══════════════════════════════════════════════════════════════
+   INICIALIZAÇÃO
+═══════════════════════════════════════════════════════════════ */
+document.getElementById('analyze-btn').addEventListener('click', () => {
+    activeGroup = null;
+    document.body.classList.remove('has-active');
+    let text = document.getElementById('lyrics-input').value;
+    let minGroup = parseInt(document.getElementById('min-group').value);
+    if (!text.trim()) return;
+    let result = analyzeLyrics(text, minGroup);
+    render(result);
+});
+
+document.getElementById('min-group').addEventListener('input', e => {
+    document.getElementById('min-group-val').textContent = e.target.value;
+});
+
+// Auto-analyze on load if there's content
+window.addEventListener('DOMContentLoaded', () => {
+    let text = document.getElementById('lyrics-input').value;
+    if (text.trim()) {
+        document.getElementById('analyze-btn').click();
+    }
+});
+</script>
+</body>
+</html>
