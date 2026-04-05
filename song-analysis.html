@@ -163,11 +163,105 @@ body.has-active .legend-chip { opacity: 0.4; }
 body.has-active .legend-chip.selected { opacity: 1; }
 
 /* Stats */
-#stats {
+#stats, .panel-stats {
   margin-top: 12px;
   font-size: 12px;
   color: var(--muted);
   text-align: center;
+}
+
+/* Mode tabs */
+#mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+}
+.tab {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+#tonic-only-wrap {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+#tonic-only-wrap.visible { display: inline-flex; }
+#tonic-only-wrap input { margin: 0; }
+
+/* Single panel (rime / onset modes) */
+#single-wrap { display: block; }
+#single-wrap.hidden { display: none; }
+
+/* Compare layout */
+#compare-wrap {
+  display: none;
+  gap: 16px;
+}
+#compare-wrap.visible { display: flex; }
+.compare-col {
+  flex: 1;
+  min-width: 0;
+}
+.compare-col h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.compare-col .song-display {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  font-size: 15px;
+  line-height: 2.1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.compare-col .panel-legend {
+  margin-top: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.compare-col .panel-legend h5 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.compare-col .panel-legend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* Scoped panel active states (compare mode) */
+.panel-scope.has-panel-active .syl.colored { opacity: 0.25; }
+.panel-scope.has-panel-active .syl.colored.active { opacity: 1; box-shadow: 0 0 0 2px rgba(0,0,0,0.3); }
+.panel-scope.has-panel-active .syl:not(.colored) { opacity: 0.4; }
+.panel-scope.has-panel-active .legend-chip { opacity: 0.4; }
+.panel-scope.has-panel-active .legend-chip.selected { opacity: 1; }
+
+@media (max-width: 700px) {
+  #compare-wrap.visible { flex-direction: column; }
+  .compare-col .song-display { font-size: 14px; padding: 12px 14px; }
 }
 </style>
 </head>
@@ -210,16 +304,48 @@ Até chegar nalgum lugar</textarea>
         <input type="range" id="min-group" min="2" max="6" value="2">
         <span class="val" id="min-group-val">2</span>
       </div>
+      <label id="tonic-only-wrap">
+        <input type="checkbox" id="tonic-only"> Apenas tônicas
+      </label>
+    </div>
+    <div id="mode-tabs">
+      <button class="tab active" data-mode="rime">Rima</button>
+      <button class="tab" data-mode="onset">Aliteração</button>
+      <button class="tab" data-mode="compare">Comparar</button>
     </div>
   </section>
 
   <section id="output-section">
-    <div id="song-display"></div>
-    <div id="legend">
-      <h3>Grupos sonoros</h3>
-      <div id="legend-list"></div>
+    <!-- Single mode (rime or onset) -->
+    <div id="single-wrap">
+      <div id="song-display"></div>
+      <div id="legend">
+        <h3 id="legend-title">Grupos sonoros</h3>
+        <div id="legend-list"></div>
+      </div>
+      <div id="stats"></div>
     </div>
-    <div id="stats"></div>
+    <!-- Compare mode -->
+    <div id="compare-wrap">
+      <div class="compare-col panel-scope" id="panel-l">
+        <h4>Rima (núcleo + coda)</h4>
+        <div class="song-display" id="song-display-l"></div>
+        <div class="panel-legend">
+          <h5>Grupos</h5>
+          <div class="panel-legend-list" id="legend-list-l"></div>
+        </div>
+        <div class="panel-stats" id="stats-l"></div>
+      </div>
+      <div class="compare-col panel-scope" id="panel-r">
+        <h4>Aliteração (onset)</h4>
+        <div class="song-display" id="song-display-r"></div>
+        <div class="panel-legend">
+          <h5>Grupos</h5>
+          <div class="panel-legend-list" id="legend-list-r"></div>
+        </div>
+        <div class="panel-stats" id="stats-r"></div>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -360,39 +486,38 @@ function cleanWord(raw) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ESTADO GLOBAL
+═══════════════════════════════════════════════════════════════ */
+let currentMode = 'rime';   // 'rime' | 'onset' | 'compare'
+let lastResult  = null;     // cached analysis result
+
+/* ═══════════════════════════════════════════════════════════════
    ANÁLISE PRINCIPAL
 ═══════════════════════════════════════════════════════════════ */
-let activeGroup = null;
-
-function analyzeLyrics(text, minGroup) {
+function analyzeLyrics(text, minGroup, tonicOnly) {
     let lines = text.split('\n');
-    // allSyls: flat list of every syllable reference for grouping
     let allSyls = [];
-    let structure = []; // [{type:'line', tokens:[{type:'word',syls,tonica,rimeKeys}|{type:'space'}|{type:'punct',text}]}]
+    let structure = [];
 
     for (let line of lines) {
-        if (!line.trim()) {
-            structure.push({ type: 'blank' });
-            continue;
-        }
+        if (!line.trim()) { structure.push({ type: 'blank' }); continue; }
         let tokens = [];
-        // Split preserving spaces and punctuation
-        let parts = line.match(/[a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ'']+|[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ'']+/gi) || [];
+        let parts = line.match(/[a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\u2018\u2019'']+|[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\u2018\u2019'']+/gi) || [];
         for (let part of parts) {
-            if (!vRegex.test(part)) {
-                tokens.push({ type: 'other', text: part });
-                continue;
-            }
+            if (!vRegex.test(part)) { tokens.push({ type: 'other', text: part }); continue; }
             let cleaned = cleanWord(part);
-            if (!cleaned || !vRegex.test(cleaned)) {
-                tokens.push({ type: 'other', text: part });
-                continue;
-            }
+            if (!cleaned || !vRegex.test(cleaned)) { tokens.push({ type: 'other', text: part }); continue; }
             let sils = silabificar(cleaned.toLowerCase());
             let ti = identificarTonica(sils, cleaned);
             let sylData = sils.map((s, i) => {
-                let rime = sylRime(s);
-                let ref = { text: s, rime: rime, isTonica: i === ti, group: null, el: null };
+                let ref = {
+                    text: s,
+                    rime: sylRime(s),
+                    onset: calcOnset(s),
+                    isTonica: i === ti,
+                    rimeGroup: null,
+                    onsetGroup: null,
+                };
                 allSyls.push(ref);
                 return ref;
             });
@@ -401,169 +526,269 @@ function analyzeLyrics(text, minGroup) {
         structure.push({ type: 'line', tokens: tokens });
     }
 
-    // Group by rime
+    // ── Group by RIME ──
     let rimeMap = new Map();
     for (let ref of allSyls) {
         if (!rimeMap.has(ref.rime)) rimeMap.set(ref.rime, []);
         rimeMap.get(ref.rime).push(ref);
     }
-
-    // Filter by min group size, sort by count descending
-    let groups = [];
-    for (let [rime, refs] of rimeMap) {
-        if (refs.length >= minGroup) {
-            groups.push({ rime, refs, color: null });
-        }
+    let rimeGroups = [];
+    for (let [key, refs] of rimeMap) {
+        if (refs.length >= minGroup)
+            rimeGroups.push({ key, refs, color: null, mode: 'rime' });
     }
-    groups.sort((a, b) => b.refs.length - a.refs.length);
-
-    // Assign colors
-    for (let i = 0; i < groups.length; i++) {
-        groups[i].color = PALETTE[i % PALETTE.length];
-        for (let ref of groups[i].refs) {
-            ref.group = groups[i];
-        }
+    rimeGroups.sort((a, b) => b.refs.length - a.refs.length);
+    for (let i = 0; i < rimeGroups.length; i++) {
+        rimeGroups[i].color = PALETTE[i % PALETTE.length];
+        for (let ref of rimeGroups[i].refs) ref.rimeGroup = rimeGroups[i];
     }
 
-    return { structure, groups };
+    // ── Group by ONSET ──
+    let onsetMap = new Map();
+    for (let ref of allSyls) {
+        if (!ref.onset) continue;  // syllables starting with vowel have no onset
+        if (tonicOnly && !ref.isTonica) continue;
+        if (!onsetMap.has(ref.onset)) onsetMap.set(ref.onset, []);
+        onsetMap.get(ref.onset).push(ref);
+    }
+    let onsetGroups = [];
+    for (let [key, refs] of onsetMap) {
+        if (refs.length >= minGroup)
+            onsetGroups.push({ key, refs, color: null, mode: 'onset' });
+    }
+    onsetGroups.sort((a, b) => b.refs.length - a.refs.length);
+    for (let i = 0; i < onsetGroups.length; i++) {
+        onsetGroups[i].color = PALETTE[i % PALETTE.length];
+        for (let ref of onsetGroups[i].refs) ref.onsetGroup = onsetGroups[i];
+    }
+
+    return { structure, rimeGroups, onsetGroups, allSyls };
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RENDERIZAÇÃO
+   RENDERIZAÇÃO GENÉRICA (reutilizável por painel)
 ═══════════════════════════════════════════════════════════════ */
-function render(result) {
-    let display = document.getElementById('song-display');
-    let legendList = document.getElementById('legend-list');
-    let stats = document.getElementById('stats');
-    document.getElementById('output-section').classList.add('visible');
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
-    // Build song display
+/**
+ * Renders the song into a display container and populates its legend.
+ * @param {Object} opts
+ * @param {HTMLElement} opts.displayEl   - container for the song HTML
+ * @param {HTMLElement} opts.legendEl    - container for legend chips
+ * @param {HTMLElement} opts.statsEl     - container for stats text
+ * @param {Array}       opts.structure   - parsed line/token structure
+ * @param {Array}       opts.groups      - the groups to use for coloring
+ * @param {string}      opts.mode        - 'rime' or 'onset'
+ * @param {string}      opts.scope       - CSS scope class for independent hover ('body' or panel id)
+ * @param {Array}       opts.allSyls     - all syllable refs (for stats)
+ */
+function renderPanel(opts) {
+    let { displayEl, legendEl, statsEl, structure, groups, mode, scopeEl, allSyls } = opts;
+    let groupField = mode === 'onset' ? 'onsetGroup' : 'rimeGroup';
+    let dataAttr   = mode === 'onset' ? 'data-onset' : 'data-rime';
+    let keyPrefix  = mode === 'onset' ? '' : '-';
+    let keySuffix  = mode === 'onset' ? '-' : '';
+
+    // Track active group per panel
+    let panelActive = null;
+
+    // Build song HTML
     let html = '';
-    for (let item of result.structure) {
-        if (item.type === 'blank') {
-            html += '<span class="line blank"></span>';
-            continue;
-        }
+    for (let item of structure) {
+        if (item.type === 'blank') { html += '<span class="line blank"></span>'; continue; }
         html += '<span class="line">';
         for (let tok of item.tokens) {
-            if (tok.type === 'other') {
-                html += escHtml(tok.text);
-                continue;
-            }
-            // word
+            if (tok.type === 'other') { html += escHtml(tok.text); continue; }
             html += '<span class="word">';
             for (let i = 0; i < tok.syls.length; i++) {
                 let s = tok.syls[i];
+                let g = s[groupField];
                 let cls = 'syl';
                 if (s.isTonica) cls += ' tonica';
                 let style = '';
-                if (s.group) {
-                    cls += ' colored';
-                    style = ` style="background:${s.group.color}"`;
-                }
-                let id = `syl-${Math.random().toString(36).slice(2,8)}`;
-                s._id = id;
-                html += `<span class="${cls}" id="${id}" data-rime="${escAttr(s.rime)}"${style}>${escHtml(s.text)}</span>`;
-                if (i < tok.syls.length - 1) {
-                    html += '<span class="sep">\u00B7</span>';
-                }
+                if (g) { cls += ' colored'; style = ` style="background:${g.color}"`; }
+                let key = g ? g.key : '';
+                html += `<span class="${cls}" ${dataAttr}="${escAttr(key)}"${style}>${escHtml(s.text)}</span>`;
+                if (i < tok.syls.length - 1) html += '<span class="sep">\u00B7</span>';
             }
             html += '</span>';
         }
         html += '</span>';
     }
-    display.innerHTML = html;
+    displayEl.innerHTML = html;
 
     // Legend
-    legendList.innerHTML = '';
-    for (let g of result.groups) {
+    legendEl.innerHTML = '';
+    for (let g of groups) {
         let chip = document.createElement('span');
         chip.className = 'legend-chip';
         chip.style.background = g.color;
-        chip.dataset.rime = g.rime;
-        chip.innerHTML = `<strong>-${escHtml(g.rime)}</strong> <span class="count">(${g.refs.length})</span>`;
-        chip.addEventListener('click', () => toggleGroup(g.rime));
-        chip.addEventListener('mouseenter', () => highlightGroup(g.rime));
-        chip.addEventListener('mouseleave', () => clearHighlight());
-        legendList.appendChild(chip);
+        chip.dataset.key = g.key;
+        chip.innerHTML = `<strong>${keyPrefix}${escHtml(g.key)}${keySuffix}</strong> <span class="count">(${g.refs.length})</span>`;
+        legendEl.appendChild(chip);
     }
 
     // Stats
-    let totalSyls = 0, coloredSyls = 0;
-    for (let item of result.structure) {
-        if (item.type !== 'line') continue;
-        for (let tok of item.tokens) {
-            if (tok.type !== 'word') continue;
-            totalSyls += tok.syls.length;
-            coloredSyls += tok.syls.filter(s => s.group).length;
+    if (statsEl && allSyls) {
+        let total = allSyls.length;
+        let colored = allSyls.filter(s => s[groupField]).length;
+        statsEl.textContent = `${groups.length} grupos \u00B7 ${colored} de ${total} s\u00edlabas coloridas`;
+    }
+
+    // ── Interactivity (scoped to this panel) ──
+    let activeClass = scopeEl === document.body ? 'has-active' : 'has-panel-active';
+
+    function highlight(key) {
+        if (panelActive) return;
+        scopeEl.classList.add(activeClass);
+        displayEl.querySelectorAll(`.syl.colored[${dataAttr}="${CSS.escape(key)}"]`).forEach(el => el.classList.add('active'));
+        legendEl.querySelectorAll(`.legend-chip[data-key="${CSS.escape(key)}"]`).forEach(el => el.classList.add('selected'));
+    }
+    function clearHL() {
+        if (panelActive) return;
+        scopeEl.classList.remove(activeClass);
+        displayEl.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
+        legendEl.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+    }
+    function toggle(key) {
+        if (panelActive === key) {
+            panelActive = null;
+            scopeEl.classList.remove(activeClass);
+            displayEl.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
+            legendEl.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+        } else {
+            panelActive = key;
+            scopeEl.classList.add(activeClass);
+            displayEl.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
+            legendEl.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+            displayEl.querySelectorAll(`.syl.colored[${dataAttr}="${CSS.escape(key)}"]`).forEach(el => el.classList.add('active'));
+            legendEl.querySelectorAll(`.legend-chip[data-key="${CSS.escape(key)}"]`).forEach(el => el.classList.add('selected'));
         }
     }
-    stats.textContent = `${result.groups.length} grupos sonoros \u00B7 ${coloredSyls} de ${totalSyls} s\u00edlabas coloridas`;
 
-    // Wire hover on syllables
-    display.querySelectorAll('.syl.colored').forEach(el => {
-        el.addEventListener('mouseenter', () => highlightGroup(el.dataset.rime));
-        el.addEventListener('mouseleave', () => clearHighlight());
-        el.addEventListener('click', () => toggleGroup(el.dataset.rime));
+    displayEl.querySelectorAll('.syl.colored').forEach(el => {
+        let key = el.getAttribute(dataAttr);
+        el.addEventListener('mouseenter', () => highlight(key));
+        el.addEventListener('mouseleave', () => clearHL());
+        el.addEventListener('click', () => toggle(key));
+    });
+    legendEl.querySelectorAll('.legend-chip').forEach(el => {
+        let key = el.dataset.key;
+        el.addEventListener('mouseenter', () => highlight(key));
+        el.addEventListener('mouseleave', () => clearHL());
+        el.addEventListener('click', () => toggle(key));
     });
 }
 
-function highlightGroup(rime) {
-    if (activeGroup) return; // locked selection takes priority
-    document.body.classList.add('has-active');
-    document.querySelectorAll(`.syl.colored[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('active'));
-    document.querySelectorAll(`.legend-chip[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('selected'));
-}
-
-function clearHighlight() {
-    if (activeGroup) return;
+/* ═══════════════════════════════════════════════════════════════
+   EXIBIÇÃO POR MODO
+═══════════════════════════════════════════════════════════════ */
+function showResult() {
+    if (!lastResult) return;
+    document.getElementById('output-section').classList.add('visible');
     document.body.classList.remove('has-active');
-    document.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
-}
 
-function toggleGroup(rime) {
-    if (activeGroup === rime) {
-        activeGroup = null;
-        document.body.classList.remove('has-active');
-        document.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
+    let singleWrap  = document.getElementById('single-wrap');
+    let compareWrap = document.getElementById('compare-wrap');
+
+    if (currentMode === 'compare') {
+        singleWrap.classList.add('hidden');
+        compareWrap.classList.add('visible');
+
+        // Left panel: Rime
+        let panelL = document.getElementById('panel-l');
+        panelL.classList.remove('has-panel-active');
+        renderPanel({
+            displayEl: document.getElementById('song-display-l'),
+            legendEl:  document.getElementById('legend-list-l'),
+            statsEl:   document.getElementById('stats-l'),
+            structure: lastResult.structure,
+            groups:    lastResult.rimeGroups,
+            mode:      'rime',
+            scopeEl:   panelL,
+            allSyls:   lastResult.allSyls,
+        });
+
+        // Right panel: Onset
+        let panelR = document.getElementById('panel-r');
+        panelR.classList.remove('has-panel-active');
+        renderPanel({
+            displayEl: document.getElementById('song-display-r'),
+            legendEl:  document.getElementById('legend-list-r'),
+            statsEl:   document.getElementById('stats-r'),
+            structure: lastResult.structure,
+            groups:    lastResult.onsetGroups,
+            mode:      'onset',
+            scopeEl:   panelR,
+            allSyls:   lastResult.allSyls,
+        });
     } else {
-        activeGroup = rime;
-        document.body.classList.add('has-active');
-        document.querySelectorAll('.syl.active').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.legend-chip.selected').forEach(el => el.classList.remove('selected'));
-        document.querySelectorAll(`.syl.colored[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('active'));
-        document.querySelectorAll(`.legend-chip[data-rime="${CSS.escape(rime)}"]`).forEach(el => el.classList.add('selected'));
+        singleWrap.classList.remove('hidden');
+        compareWrap.classList.remove('visible');
+
+        let groups = currentMode === 'onset' ? lastResult.onsetGroups : lastResult.rimeGroups;
+        let titleEl = document.getElementById('legend-title');
+        titleEl.textContent = currentMode === 'onset' ? 'Grupos consonantais (onset)' : 'Grupos sonoros (rima)';
+
+        renderPanel({
+            displayEl: document.getElementById('song-display'),
+            legendEl:  document.getElementById('legend-list'),
+            statsEl:   document.getElementById('stats'),
+            structure: lastResult.structure,
+            groups:    groups,
+            mode:      currentMode,
+            scopeEl:   document.body,
+            allSyls:   lastResult.allSyls,
+        });
     }
 }
 
-function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function runAnalysis() {
+    let text = document.getElementById('lyrics-input').value;
+    if (!text.trim()) return;
+    let minGroup  = parseInt(document.getElementById('min-group').value);
+    let tonicOnly = document.getElementById('tonic-only').checked;
+    lastResult = analyzeLyrics(text, minGroup, tonicOnly);
+    showResult();
+}
 
 /* ═══════════════════════════════════════════════════════════════
    INICIALIZAÇÃO
 ═══════════════════════════════════════════════════════════════ */
-document.getElementById('analyze-btn').addEventListener('click', () => {
-    activeGroup = null;
-    document.body.classList.remove('has-active');
-    let text = document.getElementById('lyrics-input').value;
-    let minGroup = parseInt(document.getElementById('min-group').value);
-    if (!text.trim()) return;
-    let result = analyzeLyrics(text, minGroup);
-    render(result);
-});
+// Analyze button
+document.getElementById('analyze-btn').addEventListener('click', runAnalysis);
 
+// Min-group slider
 document.getElementById('min-group').addEventListener('input', e => {
     document.getElementById('min-group-val').textContent = e.target.value;
+    if (lastResult) runAnalysis();
 });
 
-// Auto-analyze on load if there's content
+// Tonic-only checkbox
+document.getElementById('tonic-only').addEventListener('change', () => {
+    if (lastResult) runAnalysis();
+});
+
+// Mode tabs
+document.querySelectorAll('#mode-tabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('#mode-tabs .tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentMode = tab.dataset.mode;
+
+        // Show/hide tonic-only checkbox (relevant for onset and compare modes)
+        let tonicWrap = document.getElementById('tonic-only-wrap');
+        tonicWrap.classList.toggle('visible', currentMode === 'onset' || currentMode === 'compare');
+
+        if (lastResult) showResult();
+    });
+});
+
+// Auto-analyze on load
 window.addEventListener('DOMContentLoaded', () => {
     let text = document.getElementById('lyrics-input').value;
-    if (text.trim()) {
-        document.getElementById('analyze-btn').click();
-    }
+    if (text.trim()) runAnalysis();
 });
 </script>
 </body>
