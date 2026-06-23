@@ -639,6 +639,7 @@ body {
     <button class="topbar-btn hidden" id="btn-mic" title="Busca por voz" aria-label="Busca por voz">🎤</button>
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
     <button class="topbar-btn" id="btn-corpus" title="Esquemas do corpus" aria-label="Buscar esquemas de rima no corpus" style="font-size:13px;font-weight:700;letter-spacing:-0.5px;">ESQ</button>
+    <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
   </div>
   <div id="rima-express" aria-label="Sugestões rápidas de rima"></div>
   <!-- History dropdown -->
@@ -1397,6 +1398,7 @@ let FILTROS_CONTEM = {
 ═══════════════════════════════════════════════════════════════ */
 let corpusEsquemas = null;
 let modoCorpus     = false;
+let mostrarSilabas = true;
 
 async function carregarCorpus() {
     if (corpusEsquemas) return;
@@ -1570,6 +1572,14 @@ function fecharLetra() {
     requestAnimationFrame(() => {
         document.getElementById('corpus-viewport').scrollTop = corpusScrollY;
     });
+}
+
+function toggleSilabas() {
+    mostrarSilabas = !mostrarSilabas;
+    document.getElementById('btn-silabas').classList.toggle('active', mostrarSilabas);
+    renderResultados();
+    let val = document.getElementById('input-a').value.trim();
+    if (val.length >= 2) _rimaExpress(val);
 }
 
 function toggleCorpusMode() {
@@ -1985,16 +1995,24 @@ function renderChunk() {
         }
         card.setAttribute('role', 'listitem');
         card.dataset.palavra = item.palavra;
-        let sepFinal = ehFinalAmbiguo(item.silabas) ? ':' : '·';
-        let sils = item.silabas;
-        let sylHtml = sils.map((s, i) => {
-            let part = i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s;
-            if (i < sils.length - 1) {
-                let sep = (i === sils.length - 2 && sepFinal === ':') ? ':' : '·';
-                return part + sep;
-            }
-            return part;
-        }).join('');
+        let sylHtml;
+        if (!mostrarSilabas) {
+            let tonica = item.silabas[item.tonicaIndex] || '';
+            sylHtml = item.silabas.map((s, i) =>
+                i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s
+            ).join('');
+        } else {
+            let sepFinal = ehFinalAmbiguo(item.silabas) ? ':' : '·';
+            let sils = item.silabas;
+            sylHtml = sils.map((s, i) => {
+                let part = i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s;
+                if (i < sils.length - 1) {
+                    let sep = (i === sils.length - 2 && sepFinal === ':') ? ':' : '·';
+                    return part + sep;
+                }
+                return part;
+            }).join('');
+        }
         let rhymeTag = (alvoAtual && item.rimaPerfeita)
             ? `<span class="card-rkey">-${item.rimaPerfeita}</span>` : '';
         card.innerHTML = `<span>${sylHtml}</span>${rhymeTag}`;
@@ -2075,9 +2093,8 @@ function _rimaExpress(val) {
         .slice(0, 6);
     if (!top.length) { box.innerHTML = ''; return; }
     box.innerHTML = top.map(t => {
-        let sylHtml = t.sil.map((s,i) => i === perfilFonetico(t.p)?.tonicaIndex
-            ? `<b>${s}</b>` : s).join('·');
-        return `<span class="rex-chip" data-palavra="${t.p}">${t.sil.join('·')}</span>`;
+        let label = mostrarSilabas ? t.sil.join('·') : t.p;
+        return `<span class="rex-chip" data-palavra="${t.p}">${label}</span>`;
     }).join('');
 }
 
