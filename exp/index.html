@@ -393,6 +393,40 @@ body {
 .word-card.b-prox  { border-color: var(--c-prox); }
 .word-card.b-ritmo { border-color: var(--c-ritmo); }
 .tonica { font-weight: 800; color: var(--accent); }
+.word-card.favorito { box-shadow: inset 0 0 0 2px var(--c-rima); }
+.word-card.favorito::after {
+  content: '★'; position: absolute; top: 3px; right: 5px;
+  font-size: 9px; color: var(--c-rima); line-height: 1;
+}
+.word-card { position: relative; }
+#fav-panel {
+  position: absolute; inset: 0; background: var(--bg);
+  display: flex; flex-direction: column; z-index: 50;
+  transform: translateX(100%); transition: transform 0.25s ease;
+}
+#fav-panel.active { transform: translateX(0); }
+#fav-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg); flex-shrink: 0;
+}
+#btn-back-fav {
+  background: none; border: 1px solid var(--border); color: var(--fg);
+  border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer;
+  flex-shrink: 0;
+}
+#btn-back-fav:hover { background: var(--hover); }
+#fav-title { font-size: 14px; font-weight: 700; flex: 1; }
+#btn-fav-clear {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+}
+#btn-fav-clear:hover { background: var(--hover); }
+#fav-body { flex: 1; overflow-y: auto; padding: 14px 12px calc(var(--safe-b) + 14px); }
+#fav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px;
+}
 .card-rkey {
   font-size: 9px; font-weight: 600; color: var(--muted);
   opacity: 0.65; letter-spacing: 0.02em;
@@ -640,6 +674,7 @@ body {
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
     <button class="topbar-btn" id="btn-corpus" title="Esquemas do corpus" aria-label="Buscar esquemas de rima no corpus" style="font-size:13px;font-weight:700;letter-spacing:-0.5px;">ESQ</button>
     <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
+    <button class="topbar-btn" id="btn-favs" title="Palavras salvas" aria-label="Ver palavras salvas" onclick="abrirFavoritos()" style="font-size:15px;">★</button>
   </div>
   <div id="rima-express" aria-label="Sugestões rápidas de rima"></div>
   <!-- History dropdown -->
@@ -839,6 +874,17 @@ body {
     <div id="corpus-viewport">
       <div id="corpus-count"></div>
       <div id="corpus-grid"></div>
+    </div>
+    <!-- Favorites panel -->
+    <div id="fav-panel" aria-label="Palavras salvas">
+      <div id="fav-header">
+        <button id="btn-back-fav" onclick="fecharFavoritos()" aria-label="Voltar">← Voltar</button>
+        <span id="fav-title">Palavras salvas</span>
+        <button id="btn-fav-clear" onclick="limparFavoritos()" title="Remover todas">Limpar</button>
+      </div>
+      <div id="fav-body">
+        <div id="fav-grid"></div>
+      </div>
     </div>
     <!-- Lyrics detail panel (shown when a corpus card is clicked) -->
     <div id="lyrics-panel">
@@ -1399,6 +1445,7 @@ let FILTROS_CONTEM = {
 let corpusEsquemas = null;
 let modoCorpus     = false;
 let mostrarSilabas = true;
+let favoritos      = new Set(JSON.parse(localStorage.getItem('ptbr-favs') || '[]'));
 
 async function carregarCorpus() {
     if (corpusEsquemas) return;
@@ -1599,6 +1646,81 @@ function toggleCorpusMode() {
         });
     }
 }
+/* ═══════════════════════════════════════════════════════════════
+   FAVORITOS
+═══════════════════════════════════════════════════════════════ */
+function _saveFavs() {
+    localStorage.setItem('ptbr-favs', JSON.stringify([...favoritos]));
+    document.getElementById('btn-favs').classList.toggle('active', favoritos.size > 0);
+}
+
+function toggleFavorito(palavra) {
+    if (favoritos.has(palavra)) {
+        favoritos.delete(palavra);
+    } else {
+        favoritos.add(palavra);
+        if (navigator.vibrate) navigator.vibrate([10, 40, 80]);
+    }
+    _saveFavs();
+    document.querySelectorAll(`.word-card[data-palavra="${CSS.escape(palavra)}"]`)
+        .forEach(c => c.classList.toggle('favorito', favoritos.has(palavra)));
+}
+
+function abrirFavoritos() {
+    _renderFavGrid();
+    document.getElementById('fav-panel').classList.add('active');
+}
+
+function fecharFavoritos() {
+    document.getElementById('fav-panel').classList.remove('active');
+}
+
+function limparFavoritos() {
+    favoritos.clear();
+    _saveFavs();
+    _renderFavGrid();
+    document.querySelectorAll('.word-card.favorito').forEach(c => c.classList.remove('favorito'));
+}
+
+function _renderFavGrid() {
+    let grid = document.getElementById('fav-grid');
+    if (favoritos.size === 0) {
+        grid.innerHTML = '<div class="empty-state">Nenhuma palavra salva ainda.<br><span style="font-size:13px">Pressione e segure uma palavra para salvá-la.</span></div>';
+        return;
+    }
+    let frag = document.createDocumentFragment();
+    [...favoritos].forEach(palavra => {
+        let perfil = perfilFonetico(palavra);
+        let card = document.createElement('div');
+        card.className = 'word-card favorito';
+        card.dataset.palavra = palavra;
+        let sylHtml;
+        if (perfil && mostrarSilabas) {
+            let sils = perfil.silabas;
+            let sepFinal = ehFinalAmbiguo(sils) ? ':' : '·';
+            sylHtml = sils.map((s, i) => {
+                let part = i === perfil.tonicaIndex ? `<span class="tonica">${s}</span>` : s;
+                if (i < sils.length - 1) {
+                    let sep = (i === sils.length - 2 && sepFinal === ':') ? ':' : '·';
+                    return part + sep;
+                }
+                return part;
+            }).join('');
+        } else if (perfil) {
+            sylHtml = perfil.silabas.map((s, i) =>
+                i === perfil.tonicaIndex ? `<span class="tonica">${s}</span>` : s
+            ).join('');
+        } else {
+            sylHtml = palavra;
+        }
+        card.innerHTML = `<span>${sylHtml}</span>`;
+        _addLongPress(card, () => { toggleFavorito(palavra); _renderFavGrid(); });
+        frag.appendChild(card);
+    });
+    grid.innerHTML = '';
+    grid.appendChild(frag);
+}
+
 let FILTRO_TRACOS  = new Set(); // traços fonéticos exigidos na coda
 // tolerancia: 0=exato, 1=tier≤1 (sonoridade), 2=tier≤2 (r/l, m/n)
 
@@ -1651,6 +1773,7 @@ async function indexarDicionario() {
             renderHistorico();
             _restoreFromHash();
             if (alvoAtual || Object.values(FILTROS).some(v => v !== null)) processarBusca();
+            document.getElementById('btn-favs').classList.toggle('active', favoritos.size > 0);
         }, 30);
     } catch(e) {
         st.textContent = '⚠ Erro ao carregar palavras.txt';
@@ -1995,6 +2118,8 @@ function renderChunk() {
         }
         card.setAttribute('role', 'listitem');
         card.dataset.palavra = item.palavra;
+        if (favoritos.has(item.palavra)) card.classList.add('favorito');
+        _addLongPress(card, () => toggleFavorito(item.palavra));
         let sylHtml;
         if (!mostrarSilabas) {
             let tonica = item.silabas[item.tonicaIndex] || '';
@@ -2389,6 +2514,21 @@ function _closeIntersect() {
     _applyIntersectState();
 }
 
+function _addLongPress(el, cb, delay = 420) {
+    let timer = null;
+    let moved = false;
+    const start = e => {
+        moved = false;
+        timer = setTimeout(() => { if (!moved) { cb(); e.preventDefault(); } }, delay);
+    };
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    const move = () => { moved = true; cancel(); };
+    el.addEventListener('pointerdown', start, { passive: true });
+    el.addEventListener('pointerup', cancel);
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('pointermove', move, { passive: true });
+}
+
 /* ═══════════════════════════════════════════════════════════════
    14. FILTER SHEET (mobile)
 ═══════════════════════════════════════════════════════════════ */
@@ -2543,6 +2683,14 @@ function _restoreFromHash() {
 document.getElementById('grid').addEventListener('click', e => {
     let card = e.target.closest('.word-card');
     if (!card || !card.dataset.palavra) return;
+    setAlvoPalavra(card.dataset.palavra);
+});
+
+// Favorites panel: click = set search
+document.getElementById('fav-grid').addEventListener('click', e => {
+    let card = e.target.closest('.word-card');
+    if (!card || !card.dataset.palavra) return;
+    fecharFavoritos();
     setAlvoPalavra(card.dataset.palavra);
 });
 
