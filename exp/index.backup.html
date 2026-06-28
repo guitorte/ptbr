@@ -670,7 +670,9 @@ body {
       <button class="pill-btn hidden" id="btn-clear-a" title="Limpar" aria-label="Limpar busca">✕</button>
     </div>
     <button class="topbar-btn" id="btn-intersect" title="Interseção A∩B" aria-label="Busca de interseção" style="font-size:14px;font-weight:800;">∩</button>
+    <button class="topbar-btn hidden" id="btn-mic" title="Busca por voz" aria-label="Busca por voz">🎤</button>
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
+    <button class="topbar-btn" id="btn-corpus" title="Esquemas do corpus" aria-label="Buscar esquemas de rima no corpus" style="font-size:13px;font-weight:700;letter-spacing:-0.5px;">ESQ</button>
     <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
     <button class="topbar-btn" id="btn-favs" title="Palavras salvas" aria-label="Ver palavras salvas" onclick="abrirFavoritos()" style="font-size:15px;">★</button>
   </div>
@@ -1631,7 +1633,7 @@ function toggleCorpusMode() {
     modoCorpus = !modoCorpus;
     // If leaving corpus mode, close lyrics panel first
     if (!modoCorpus) document.getElementById('lyrics-panel').classList.remove('active');
-    document.getElementById('btn-corpus')?.classList.toggle('active', modoCorpus);
+    document.getElementById('btn-corpus').classList.toggle('active', modoCorpus);
     document.getElementById('viewport').style.display       = modoCorpus ? 'none' : '';
     document.getElementById('subbar').style.display         = modoCorpus ? 'none' : '';
     const sidebar = document.getElementById('sidebar');
@@ -2704,7 +2706,7 @@ document.getElementById('hist-list').addEventListener('click', e => {
     if (item) { setAlvoPalavra(item.dataset.hist); closeHistDropdown(); }
 });
 document.getElementById('btn-hist').addEventListener('click', toggleHistDropdown);
-document.getElementById('btn-corpus')?.addEventListener('click', toggleCorpusMode);
+document.getElementById('btn-corpus').addEventListener('click', toggleCorpusMode);
 document.addEventListener('pointerdown', e => {
     if (!e.target.closest('#hist-dropdown') && !e.target.closest('#btn-hist'))
         closeHistDropdown();
@@ -2871,7 +2873,6 @@ document.addEventListener('keydown', e => {
     let SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
     let mic = document.getElementById('btn-mic');
-    if (!mic) return;
     let recog = new SR();
     recog.lang = 'pt-BR'; recog.maxAlternatives = 1;
     mic.classList.remove('hidden');
