@@ -129,23 +129,6 @@ body {
 #btn-mic.listening { animation: pulse 1s ease infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-/* Rima express row */
-#rima-express {
-  display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 2px;
-  scrollbar-width: none; -ms-overflow-style: none;
-  min-height: 0; transition: max-height 0.2s;
-}
-#rima-express:empty { display: none; }
-#rima-express::-webkit-scrollbar { display: none; }
-.rex-chip {
-  flex-shrink: 0; background: var(--bg); border: 1.5px solid var(--border);
-  padding: 4px 11px; border-radius: 10px;
-  font-size: 12px; font-weight: 600; color: var(--text);
-  cursor: pointer; user-select: none; white-space: nowrap;
-  transition: border-color 0.15s, transform 0.1s;
-}
-.rex-chip:active { transform: scale(0.93); border-color: var(--accent); }
-
 /* History dropdown */
 #hist-dropdown {
   position: absolute; top: calc(100% + 4px); left: 0; right: 0;
@@ -674,7 +657,6 @@ body {
     <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
     <button class="topbar-btn" id="btn-favs" title="Palavras salvas" aria-label="Ver palavras salvas" onclick="abrirFavoritos()" style="font-size:15px;">★</button>
   </div>
-  <div id="rima-express" aria-label="Sugestões rápidas de rima"></div>
   <!-- History dropdown -->
   <div id="hist-dropdown" role="listbox" aria-label="Histórico de palavras buscadas">
     <div id="hist-list"></div>
@@ -1623,8 +1605,6 @@ function toggleSilabas() {
     mostrarSilabas = !mostrarSilabas;
     document.getElementById('btn-silabas').classList.toggle('active', mostrarSilabas);
     renderResultados();
-    let val = document.getElementById('input-a').value.trim();
-    if (val.length >= 2) _rimaExpress(val);
 }
 
 function toggleCorpusMode() {
@@ -2189,36 +2169,11 @@ function clearAlvo() {
     document.getElementById('input-a').value = '';
     document.getElementById('input-b').value = '';
     document.getElementById('btn-clear-a').classList.add('hidden');
-    document.getElementById('rima-express').innerHTML = '';
     _closeIntersect();
     renderLegoBar();
     processarBusca();
     document.getElementById('input-a').focus();
     if (navigator.vibrate) navigator.vibrate(15);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   11. RIMA EXPRESS
-═══════════════════════════════════════════════════════════════ */
-function _rimaExpress(val) {
-    let box = document.getElementById('rima-express');
-    if (!dicionario.length || val.length < 2) { box.innerHTML = ''; return; }
-    let perfil = perfilFonetico(val);
-    if (!perfil) { box.innerHTML = ''; return; }
-    let setOnset = new Set(perfil.onsetTonico);
-    let setAssC  = new Set(perfil.assConsonantal);
-    let lenAssC  = perfil.assConsonantal.length;
-    let top = dicionario
-        .filter(i => i.palavra !== perfil.palavra)
-        .map(i => ({ p: i.palavra, s: calcScore(i, perfil, setOnset, setAssC, lenAssC), sil: i.silabas }))
-        .filter(i => i.s >= 130)
-        .sort((a, b) => b.s - a.s)
-        .slice(0, 6);
-    if (!top.length) { box.innerHTML = ''; return; }
-    box.innerHTML = top.map(t => {
-        let label = mostrarSilabas ? t.sil.join('·') : t.p;
-        return `<span class="rex-chip" data-palavra="${t.p}">${label}</span>`;
-    }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2710,12 +2665,6 @@ document.getElementById('fav-grid').addEventListener('click', e => {
     setAlvoPalavra(card.dataset.palavra);
 });
 
-// Rima express click
-document.getElementById('rima-express').addEventListener('click', e => {
-    let chip = e.target.closest('[data-palavra]');
-    if (chip) setAlvoPalavra(chip.dataset.palavra);
-});
-
 // History dropdown
 document.getElementById('hist-list').addEventListener('click', e => {
     let item = e.target.closest('[data-hist]');
@@ -2729,13 +2678,12 @@ document.addEventListener('pointerdown', e => {
 });
 
 // Input A
-let _debA, _debAexpress;
+let _debA;
 document.getElementById('input-a').addEventListener('input', e => {
     let val = e.target.value.trim();
     document.getElementById('btn-clear-a').classList.toggle('hidden', !val);
-    clearTimeout(_debA); clearTimeout(_debAexpress);
-    if (val.length < 2) { document.getElementById('rima-express').innerHTML = ''; return; }
-    _debAexpress = setTimeout(() => _rimaExpress(val), 120);
+    clearTimeout(_debA);
+    if (val.length < 2) return;
     _debA = setTimeout(() => { if (perfilFonetico(val)) setAlvoPalavra(val); }, 280);
 });
 document.getElementById('input-a').addEventListener('keypress', e => {
