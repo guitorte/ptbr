@@ -31,7 +31,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `silabificar(word)` | Splits word into syllables using Portuguese rules |
 | `identificarTonica(silabas, palavra)` | Returns index of the stressed syllable — see *Stress assignment* below |
 | `extrairRima(silabas, tonicaIndex)` | Returns string from tonic vowel to end (`pas-TEL` → `el`). Takes the syllable array + stress index, **not** the word |
-| `perfilFonetico(word)` | Returns full phonetic profile: `{p, sil, tonicaIndex, rimaPerfeita, vogaisRima, onsetTonico, espinhaVocal, vogalTonica, numSilabas, acentuacao, ...}` |
+| `perfilFonetico(word)` | Returns full phonetic profile. Real field names: `{palavra, silabas, tonicaIndex, numSilabas, acentuacao, rimaPerfeita, vogaisRima, onsetTonico, vogalTonica, espinhaVocal, espinhaConsonantal, assConsonantal, consAntes, vogAntes, consDepois, vogDepois, tracosCoda, familiaCluster, coda, classe, freq}` — note `palavra`/`silabas`, **not** `p`/`sil` |
 | `calcScore(a, b)` | Multi-criteria score comparing two phonetic profiles |
 | `processarBusca()` | Main search: scores all dictionary words against `alvoAtual`, applies filters |
 | `renderCorpus(results)` | Renders ESQ mode corpus cards |
