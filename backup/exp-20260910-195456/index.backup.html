@@ -129,6 +129,23 @@ body {
 #btn-mic.listening { animation: pulse 1s ease infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
+/* Rima express row */
+#rima-express {
+  display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 2px;
+  scrollbar-width: none; -ms-overflow-style: none;
+  min-height: 0; transition: max-height 0.2s;
+}
+#rima-express:empty { display: none; }
+#rima-express::-webkit-scrollbar { display: none; }
+.rex-chip {
+  flex-shrink: 0; background: var(--bg); border: 1.5px solid var(--border);
+  padding: 4px 11px; border-radius: 10px;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  cursor: pointer; user-select: none; white-space: nowrap;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.rex-chip:active { transform: scale(0.93); border-color: var(--accent); }
+
 /* History dropdown */
 #hist-dropdown {
   position: absolute; top: calc(100% + 4px); left: 0; right: 0;
@@ -653,10 +670,13 @@ body {
       <button class="pill-btn hidden" id="btn-clear-a" title="Limpar" aria-label="Limpar busca">✕</button>
     </div>
     <button class="topbar-btn" id="btn-intersect" title="Interseção A∩B" aria-label="Busca de interseção" style="font-size:14px;font-weight:800;">∩</button>
+    <button class="topbar-btn hidden" id="btn-mic" title="Busca por voz" aria-label="Busca por voz">🎤</button>
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
+    <button class="topbar-btn" id="btn-corpus" title="Esquemas do corpus" aria-label="Buscar esquemas de rima no corpus" style="font-size:13px;font-weight:700;letter-spacing:-0.5px;">ESQ</button>
     <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
     <button class="topbar-btn" id="btn-favs" title="Palavras salvas" aria-label="Ver palavras salvas" onclick="abrirFavoritos()" style="font-size:15px;">★</button>
   </div>
+  <div id="rima-express" aria-label="Sugestões rápidas de rima"></div>
   <!-- History dropdown -->
   <div id="hist-dropdown" role="listbox" aria-label="Histórico de palavras buscadas">
     <div id="hist-list"></div>
@@ -1152,7 +1172,7 @@ function identificarTonica(silabas, p) {
     let t = p.toLowerCase();
     for (let i=0;i<silabas.length;i++) if(/[áéíóúâêô]/i.test(silabas[i])) return i;
     for (let i=0;i<silabas.length;i++) if(/[ãõ]/i.test(silabas[i])) return i;
-    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|om|ons|um|uns)$/)) return silabas.length-1;
+    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|um|uns)$/)) return silabas.length-1;
     if (t.match(/(a|as|e|es|o|os|am|em|ens)$/))        return Math.max(0,silabas.length-2);
     return Math.max(0,silabas.length-2);
 }
@@ -1605,13 +1625,15 @@ function toggleSilabas() {
     mostrarSilabas = !mostrarSilabas;
     document.getElementById('btn-silabas').classList.toggle('active', mostrarSilabas);
     renderResultados();
+    let val = document.getElementById('input-a').value.trim();
+    if (val.length >= 2) _rimaExpress(val);
 }
 
 function toggleCorpusMode() {
     modoCorpus = !modoCorpus;
     // If leaving corpus mode, close lyrics panel first
     if (!modoCorpus) document.getElementById('lyrics-panel').classList.remove('active');
-    document.getElementById('btn-corpus')?.classList.toggle('active', modoCorpus);
+    document.getElementById('btn-corpus').classList.toggle('active', modoCorpus);
     document.getElementById('viewport').style.display       = modoCorpus ? 'none' : '';
     document.getElementById('subbar').style.display         = modoCorpus ? 'none' : '';
     const sidebar = document.getElementById('sidebar');
@@ -2169,11 +2191,36 @@ function clearAlvo() {
     document.getElementById('input-a').value = '';
     document.getElementById('input-b').value = '';
     document.getElementById('btn-clear-a').classList.add('hidden');
+    document.getElementById('rima-express').innerHTML = '';
     _closeIntersect();
     renderLegoBar();
     processarBusca();
     document.getElementById('input-a').focus();
     if (navigator.vibrate) navigator.vibrate(15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   11. RIMA EXPRESS
+═══════════════════════════════════════════════════════════════ */
+function _rimaExpress(val) {
+    let box = document.getElementById('rima-express');
+    if (!dicionario.length || val.length < 2) { box.innerHTML = ''; return; }
+    let perfil = perfilFonetico(val);
+    if (!perfil) { box.innerHTML = ''; return; }
+    let setOnset = new Set(perfil.onsetTonico);
+    let setAssC  = new Set(perfil.assConsonantal);
+    let lenAssC  = perfil.assConsonantal.length;
+    let top = dicionario
+        .filter(i => i.palavra !== perfil.palavra)
+        .map(i => ({ p: i.palavra, s: calcScore(i, perfil, setOnset, setAssC, lenAssC), sil: i.silabas }))
+        .filter(i => i.s >= 130)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 6);
+    if (!top.length) { box.innerHTML = ''; return; }
+    box.innerHTML = top.map(t => {
+        let label = mostrarSilabas ? t.sil.join('·') : t.p;
+        return `<span class="rex-chip" data-palavra="${t.p}">${label}</span>`;
+    }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2467,31 +2514,15 @@ function _closeIntersect() {
     _applyIntersectState();
 }
 
-// Set true the instant a long-press fires; consumed by grid click handlers
-// so the synthetic click that follows finger-lift doesn't start a new search.
-let _lpSuppressClick = false;
-
 function _addLongPress(el, cb, delay = 420) {
     let timer = null;
-    let startX = 0, startY = 0;
-    const MOVE_TOL = 12; // px of finger jitter tolerated before treating it as a scroll
-    const cancel = () => { clearTimeout(timer); timer = null; };
+    let moved = false;
     const start = e => {
-        _lpSuppressClick = false;
-        startX = e.clientX; startY = e.clientY;
-        cancel();
-        timer = setTimeout(() => {
-            timer = null;
-            _lpSuppressClick = true;
-            if (navigator.vibrate) navigator.vibrate(15);
-            cb();
-        }, delay);
+        moved = false;
+        timer = setTimeout(() => { if (!moved) { cb(); e.preventDefault(); } }, delay);
     };
-    const move = e => {
-        if (timer === null) return;
-        if (Math.abs(e.clientX - startX) > MOVE_TOL ||
-            Math.abs(e.clientY - startY) > MOVE_TOL) cancel();
-    };
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    const move = () => { moved = true; cancel(); };
     el.addEventListener('pointerdown', start, { passive: true });
     el.addEventListener('pointerup', cancel);
     el.addEventListener('pointercancel', cancel);
@@ -2650,7 +2681,6 @@ function _restoreFromHash() {
 ═══════════════════════════════════════════════════════════════ */
 // Grid click → set as new base
 document.getElementById('grid').addEventListener('click', e => {
-    if (_lpSuppressClick) { _lpSuppressClick = false; return; }
     let card = e.target.closest('.word-card');
     if (!card || !card.dataset.palavra) return;
     setAlvoPalavra(card.dataset.palavra);
@@ -2658,11 +2688,16 @@ document.getElementById('grid').addEventListener('click', e => {
 
 // Favorites panel: click = set search
 document.getElementById('fav-grid').addEventListener('click', e => {
-    if (_lpSuppressClick) { _lpSuppressClick = false; return; }
     let card = e.target.closest('.word-card');
     if (!card || !card.dataset.palavra) return;
     fecharFavoritos();
     setAlvoPalavra(card.dataset.palavra);
+});
+
+// Rima express click
+document.getElementById('rima-express').addEventListener('click', e => {
+    let chip = e.target.closest('[data-palavra]');
+    if (chip) setAlvoPalavra(chip.dataset.palavra);
 });
 
 // History dropdown
@@ -2671,19 +2706,20 @@ document.getElementById('hist-list').addEventListener('click', e => {
     if (item) { setAlvoPalavra(item.dataset.hist); closeHistDropdown(); }
 });
 document.getElementById('btn-hist').addEventListener('click', toggleHistDropdown);
-document.getElementById('btn-corpus')?.addEventListener('click', toggleCorpusMode);
+document.getElementById('btn-corpus').addEventListener('click', toggleCorpusMode);
 document.addEventListener('pointerdown', e => {
     if (!e.target.closest('#hist-dropdown') && !e.target.closest('#btn-hist'))
         closeHistDropdown();
 });
 
 // Input A
-let _debA;
+let _debA, _debAexpress;
 document.getElementById('input-a').addEventListener('input', e => {
     let val = e.target.value.trim();
     document.getElementById('btn-clear-a').classList.toggle('hidden', !val);
-    clearTimeout(_debA);
-    if (val.length < 2) return;
+    clearTimeout(_debA); clearTimeout(_debAexpress);
+    if (val.length < 2) { document.getElementById('rima-express').innerHTML = ''; return; }
+    _debAexpress = setTimeout(() => _rimaExpress(val), 120);
     _debA = setTimeout(() => { if (perfilFonetico(val)) setAlvoPalavra(val); }, 280);
 });
 document.getElementById('input-a').addEventListener('keypress', e => {
@@ -2837,7 +2873,6 @@ document.addEventListener('keydown', e => {
     let SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
     let mic = document.getElementById('btn-mic');
-    if (!mic) return;
     let recog = new SR();
     recog.lang = 'pt-BR'; recog.maxAlternatives = 1;
     mic.classList.remove('hidden');

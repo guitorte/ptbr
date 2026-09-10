@@ -109,7 +109,7 @@ function identificarTonica(silabas, p) {
     let t = p.toLowerCase();
     for (let i=0;i<silabas.length;i++) if(/[áéíóúâêô]/i.test(silabas[i])) return i;
     for (let i=0;i<silabas.length;i++) if(/[ãõ]/i.test(silabas[i])) return i;
-    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|um|uns)$/)) return silabas.length-1;
+    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|om|ons|um|uns)$/)) return silabas.length-1;
     if (t.match(/(a|as|e|es|o|os|am|em|ens)$/))        return Math.max(0,silabas.length-2);
     return Math.max(0,silabas.length-2);
 }
