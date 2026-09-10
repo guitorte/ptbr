@@ -33,7 +33,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `identificarTonica(silabas, palavra)` | Returns index of the stressed syllable — see *Stress assignment* below |
 | `extrairRima(silabas, tonicaIndex)` | Returns string from tonic vowel to end (`pas-TEL` → `el`). Takes the syllable array + stress index, **not** the word — the `u` of `qu`/`gu` + vowel is skipped (`al-GUÉM` → `ém`, `QUE-ro` → `ero`) |
 | `idxNucleo(sil)` / `semGlideQU(s)` | Nucleus index of a syllable / strip the glide `u` of `qu`/`gu` + vowel. Every vowel-reading field (`onsetTonico`, `vogalTonica`, `vogaisRima`, `espinhaVocal`, `vogAntes/Depois`) goes through them, so `QUE-ro` has onset `qu`, stressed vowel `e` |
-| `perfilFonetico(word)` | Returns full phonetic profile: `{p, sil, tonicaIndex, rimaPerfeita, vogaisRima, onsetTonico, espinhaVocal, vogalTonica, numSilabas, acentuacao, ...}` |
+| `perfilFonetico(word)` | Returns full phonetic profile. Real field names: `{palavra, silabas, tonicaIndex, numSilabas, acentuacao, rimaPerfeita, vogaisRima, onsetTonico, vogalTonica, espinhaVocal, espinhaConsonantal, esq, esqV, assConsonantal, consAntes, vogAntes, consDepois, vogDepois, grafAntes, grafDepois, tracosCoda, familiaCluster, coda, classe, freq}` — note `palavra`/`silabas`, **not** `p`/`sil` |
 | `calcScore(a, b)` | Multi-criteria score comparing two phonetic profiles |
 | `processarBusca()` | Main search: scores all dictionary words against `alvoAtual`, applies filters |
 | `renderCorpus(results)` | Renders ESQ mode corpus cards |
@@ -178,7 +178,7 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 
 ## Development branch
 
-Active branch: `claude/modo-vogais`
+Active branch: `claude/recupera-commits-orfaos`
 
 Always push to the active branch. Never push to main without explicit instruction.
 Confirm the branch actually exists before trusting this line — it goes stale after
