@@ -400,11 +400,12 @@ body {
 }
 #btn-back-fav:hover { background: var(--hover); }
 #fav-title { font-size: 14px; font-weight: 700; flex: 1; }
-#btn-fav-clear {
+#btn-fav-clear, .btn-fav-exp {
   background: none; border: 1px solid var(--border); color: var(--muted);
   border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
 }
-#btn-fav-clear:hover { background: var(--hover); }
+#btn-fav-clear:hover, .btn-fav-exp:hover { background: var(--hover); }
+.btn-fav-exp:disabled { opacity: 0.4; cursor: default; background: none; }
 #fav-body { flex: 1; overflow-y: auto; padding: 14px 12px calc(var(--safe-b) + 14px); }
 #fav-grid {
   display: grid;
@@ -867,6 +868,8 @@ body {
       <div id="fav-header">
         <button id="btn-back-fav" onclick="fecharFavoritos()" aria-label="Voltar">← Voltar</button>
         <span id="fav-title">Palavras salvas</span>
+        <button class="btn-fav-exp" id="btn-fav-copy" onclick="copiarFavoritos(this)" title="Copiar lista para a área de transferência">Copiar</button>
+        <button class="btn-fav-exp" id="btn-fav-export" onclick="exportarFavoritos()" title="Baixar lista como arquivo .txt">Exportar</button>
         <button id="btn-fav-clear" onclick="limparFavoritos()" title="Remover todas">Limpar</button>
       </div>
       <div id="fav-body">
@@ -1674,8 +1677,43 @@ function limparFavoritos() {
     document.querySelectorAll('.word-card.favorito').forEach(c => c.classList.remove('favorito'));
 }
 
+function _favTexto() {
+    return [...favoritos].join('\n') + '\n';
+}
+
+function exportarFavoritos() {
+    if (favoritos.size === 0) return;
+    let blob = new Blob([_favTexto()], { type: 'text/plain;charset=utf-8' });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = `palavras-salvas-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function copiarFavoritos(btn) {
+    if (favoritos.size === 0) return;
+    let texto = _favTexto();
+    let ok = false;
+    try { await navigator.clipboard.writeText(texto); ok = true; }
+    catch (e) {
+        // Fallback para contextos sem Clipboard API (http, WebViews antigos)
+        let ta = document.createElement('textarea');
+        ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        try { ok = document.execCommand('copy'); } catch (_) {}
+        ta.remove();
+    }
+    btn.textContent = ok ? 'Copiado ✓' : 'Falhou';
+    setTimeout(() => { btn.textContent = 'Copiar'; }, 1500);
+}
+
 function _renderFavGrid() {
     let grid = document.getElementById('fav-grid');
+    ['btn-fav-copy','btn-fav-export'].forEach(id => {
+        document.getElementById(id).disabled = favoritos.size === 0;
+    });
     if (favoritos.size === 0) {
         grid.innerHTML = '<div class="empty-state">Nenhuma palavra salva ainda.<br><span style="font-size:13px">Pressione e segure uma palavra para salvá-la.</span></div>';
         return;
