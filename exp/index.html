@@ -139,6 +139,31 @@ body {
   max-height: 200px; overflow-y: auto;
 }
 #hist-dropdown.open { display: block; }
+#add-pop {
+  position: absolute; top: calc(100% + 4px); right: 0; width: min(340px, 100%);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 300; display: none;
+}
+#add-pop.open { display: block; }
+#add-input { width: 100%; box-sizing: border-box; }
+#add-msg { font-size: 12px; color: var(--muted); margin-top: 7px; line-height: 1.45; min-height: 1em; }
+#add-msg:empty { display: none; }
+#add-msg b { color: var(--fg); }
+#add-msg .add-undo {
+  background: none; border: none; padding: 0; margin-left: 4px;
+  color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 12px;
+}
+.word-card.extra::before {
+  content: '+'; position: absolute; top: 2px; left: 5px;
+  font-size: 10px; font-weight: 800; color: var(--muted); line-height: 1;
+}
+@keyframes flash-card {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  25%, 75% { box-shadow: 0 0 0 3px var(--c-rima); }
+}
+.word-card.flash { animation: flash-card 1.6s ease 2; }
 .hist-item {
   padding: 9px 12px; border-radius: 8px;
   font-size: 14px; font-weight: 500; cursor: pointer;
@@ -656,7 +681,16 @@ body {
     <button class="topbar-btn" id="btn-intersect" title="Interseção A∩B" aria-label="Busca de interseção" style="font-size:14px;font-weight:800;">∩</button>
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
     <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
+    <button class="topbar-btn" id="btn-add" title="Adicionar palavra ao dicionário" aria-label="Adicionar palavra" onclick="toggleAddPop()" style="font-size:20px;font-weight:600;">+</button>
     <button class="topbar-btn" id="btn-favs" title="Palavras salvas" aria-label="Ver palavras salvas" onclick="abrirFavoritos()" style="font-size:15px;">★</button>
+  </div>
+  <!-- Add-word popover -->
+  <div id="add-pop" role="dialog" aria-label="Adicionar palavra">
+    <input id="add-input" class="sb-input" type="text"
+           placeholder="Nova palavra + Enter"
+           autocorrect="off" autocapitalize="none" spellcheck="false"
+           enterkeyhint="done" aria-label="Palavra a adicionar">
+    <div id="add-msg" aria-live="polite"></div>
   </div>
   <!-- History dropdown -->
   <div id="hist-dropdown" role="listbox" aria-label="Histórico de palavras buscadas">
@@ -1443,6 +1477,8 @@ let corpusEsquemas = null;
 let modoCorpus     = false;
 let mostrarSilabas = true;
 let favoritos      = new Set(JSON.parse(localStorage.getItem('ptbr-favs') || '[]'));
+let palavrasExtras = new Set(JSON.parse(localStorage.getItem('ptbr-extras') || '[]'));
+let dicSet         = new Set();   // todas as palavras indexadas (base + extras)
 
 async function carregarCorpus() {
     if (corpusEsquemas) return;
@@ -1642,6 +1678,125 @@ function toggleCorpusMode() {
     }
 }
 /* ═══════════════════════════════════════════════════════════════
+   ADICIONAR PALAVRA (+)
+   Palavras novas ficam em localStorage ('ptbr-extras') e são
+   fundidas ao dicionário na indexação. Se a palavra já existe,
+   o "+" apenas a localiza nos resultados.
+═══════════════════════════════════════════════════════════════ */
+function _saveExtras() {
+    localStorage.setItem('ptbr-extras', JSON.stringify([...palavrasExtras]));
+}
+
+function toggleAddPop(force) {
+    let pop = document.getElementById('add-pop');
+    let abrir = force !== undefined ? force : !pop.classList.contains('open');
+    pop.classList.toggle('open', abrir);
+    document.getElementById('btn-add').classList.toggle('active', abrir);
+    if (abrir) {
+        document.getElementById('hist-dropdown').classList.remove('open');
+        let inp = document.getElementById('add-input');
+        inp.focus(); inp.select();
+    }
+}
+
+function _escHtml(s) {
+    return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function _silabasHtml(perfil) {
+    return perfil.silabas.map((s, i) => i === perfil.tonicaIndex ? `<b>${_escHtml(s)}</b>` : _escHtml(s)).join('·');
+}
+
+// Garante que o card esteja renderizado, rola até ele e pisca.
+function _localizarCard(palavra) {
+    let idx = resultadosVisiveis.findIndex(i => i.palavra === palavra);
+    if (idx < 0) return -1;
+    while (itemsRenderizados <= idx && itemsRenderizados < resultadosVisiveis.length) renderChunk();
+    let card = document.querySelector(`#grid .word-card[data-palavra="${CSS.escape(palavra)}"]`);
+    if (card) {
+        card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+    }
+    return idx;
+}
+
+// Explica onde a palavra está (ou por que não aparece) na busca atual.
+function _descreverPosicao(palavra) {
+    if (dicionario.length === 0 || modoCorpus) return '';
+    if (alvoAtual && palavra === alvoAtual.palavra) return 'É a palavra buscada.';
+    let temBusca = alvoAtual || Object.values(FILTROS).some(v => v !== null)
+        || Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
+    if (!temBusca) return '';
+    let idx = _localizarCard(palavra);
+    if (idx >= 0) {
+        let item = resultadosVisiveis[idx];
+        let banda = alvoAtual && item.score > 0 ? BANDAS.find(b => b.key === getBandaKey(item.score)) : null;
+        return `Posição <b>#${(idx + 1).toLocaleString('pt-BR')}</b>`
+            + ` de ${resultadosVisiveis.length.toLocaleString('pt-BR')}`
+            + (banda ? ` · ${banda.label}` : '') + '.';
+    }
+    if (resultadosFiltrados.some(i => i.palavra === palavra))
+        return 'Não aparece: está numa faixa oculta pelo filtro do espectro.';
+    return alvoAtual
+        ? 'Não aparece nos resultados desta busca (pontuação baixa ou filtros ativos).'
+        : 'Não atende aos filtros ativos.';
+}
+
+function adicionarPalavra(raw) {
+    let msg = document.getElementById('add-msg');
+    let w = raw.trim().toLowerCase();
+    if (!w) { msg.innerHTML = ''; return; }
+    if (dicionario.length === 0) { msg.textContent = 'Aguarde o dicionário terminar de carregar.'; return; }
+    if (w.length < 2 || !/^[a-zà-öø-ÿ-]+$/.test(w) || !/[a-zà-öø-ÿ]/.test(w)) {
+        msg.textContent = 'Use só letras (hífen permitido), no mínimo 2.';
+        return;
+    }
+    let perfil = perfilFonetico(w);
+    if (!perfil) { msg.textContent = 'Não consegui analisar esta palavra.'; return; }
+    w = perfil.palavra;
+    let sil = _silabasHtml(perfil);
+
+    if (dicSet.has(w)) {
+        let pos = _descreverPosicao(w);
+        msg.innerHTML = `<b>${_escHtml(w)}</b> (${sil}) já está no dicionário. ${pos}`;
+        document.getElementById('add-input').value = '';
+        return;
+    }
+
+    dicionario.push(perfil);
+    dicSet.add(w);
+    palavrasExtras.add(w);
+    _saveExtras();
+    processarBusca();
+    let pos = _descreverPosicao(w);
+    msg.innerHTML = `✓ <b>${_escHtml(w)}</b> (${sil}) adicionada. ${pos}`
+        + `<button class="add-undo" onclick="removerPalavraExtra(${_escHtml(JSON.stringify(w))})">desfazer</button>`;
+    document.getElementById('add-input').value = '';
+    if (navigator.vibrate) navigator.vibrate(20);
+}
+
+function removerPalavraExtra(w) {
+    if (!palavrasExtras.has(w)) return;
+    palavrasExtras.delete(w);
+    _saveExtras();
+    dicionario = dicionario.filter(i => i.palavra !== w);
+    dicSet.delete(w);
+    processarBusca();
+    document.getElementById('add-msg').innerHTML = `<b>${_escHtml(w)}</b> removida.`;
+    document.getElementById('add-input').focus();
+}
+
+document.getElementById('add-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); adicionarPalavra(e.target.value); }
+    if (e.key === 'Escape') { toggleAddPop(false); }
+});
+document.addEventListener('click', e => {
+    // composedPath: o botão "desfazer" some do DOM antes do evento chegar aqui
+    if (!e.composedPath().some(n => n.id === 'add-pop' || n.id === 'btn-add'))
+        toggleAddPop(false);
+});
+
+/* ═══════════════════════════════════════════════════════════════
    FAVORITOS
 ═══════════════════════════════════════════════════════════════ */
 function _saveFavs() {
@@ -1796,6 +1951,12 @@ async function indexarDicionario() {
         st.textContent = `Indexando ${lista.length.toLocaleString('pt-BR')} palavras…`;
         setTimeout(() => {
             dicionario = lista.map(p => perfilFonetico(p)).filter(Boolean);
+            dicSet = new Set(dicionario.map(i => i.palavra));
+            for (let w of palavrasExtras) {
+                if (dicSet.has(w)) continue;
+                let perfil = perfilFonetico(w);
+                if (perfil) { dicionario.push(perfil); dicSet.add(perfil.palavra); }
+            }
             st.textContent = '';
             document.getElementById('empty-state').innerHTML =
                 `Banco com <b>${dicionario.length.toLocaleString('pt-BR')}</b> palavras.<br>
@@ -2155,6 +2316,7 @@ function renderChunk() {
         card.setAttribute('role', 'listitem');
         card.dataset.palavra = item.palavra;
         if (favoritos.has(item.palavra)) card.classList.add('favorito');
+        if (palavrasExtras.has(item.palavra)) card.classList.add('extra');
         _addLongPress(card, () => toggleFavorito(item.palavra));
         let sylHtml;
         if (!mostrarSilabas) {
