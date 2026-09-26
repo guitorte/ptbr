@@ -164,6 +164,35 @@ body {
   25%, 75% { box-shadow: 0 0 0 3px var(--c-rima); }
 }
 .word-card.flash { animation: flash-card 1.6s ease 2; }
+/* Mobile: "+" vira FAB acima do ⚙ (alcance do polegar) e o popover
+   vira um painel no rodapé, acima do teclado (--kb, via visualViewport). */
+#add-fab {
+  position: fixed; bottom: calc(78px + var(--safe-b)); right: 16px;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--surface); color: var(--primary);
+  border: 1.5px solid var(--border); cursor: pointer; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 600; line-height: 1;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  transition: transform 0.15s;
+}
+#add-fab:active { transform: scale(0.92); }
+#add-fab.active { background: var(--primary); border-color: var(--primary); color: var(--surface); }
+@media (max-width: 819px) {
+  #btn-add { display: none; }
+  #add-pop {
+    /* right: 74px deixa a coluna de FABs (+ e ⚙) livre ao lado do painel */
+    position: fixed; top: auto; left: 12px; right: 74px; width: auto;
+    bottom: calc(var(--kb, 0px) + 12px + var(--safe-b));
+    display: none; flex-direction: column;
+  }
+  #add-pop.open { display: flex; }
+  #add-msg { order: -1; margin: 0 2px 8px; font-size: 13px; }
+  #add-input { font-size: 16px; } /* ≥16px evita o zoom automático do iOS */
+}
+@media (min-width: 820px) {
+  #add-fab { display: none; }
+}
 .hist-item {
   padding: 9px 12px; border-radius: 8px;
   font-size: 14px; font-weight: 500; cursor: pointer;
@@ -1099,7 +1128,8 @@ body {
   </div>
 </div>
 
-<!-- FAB -->
+<!-- FABs -->
+<button id="add-fab" onclick="toggleAddPop()" aria-label="Adicionar palavra">+</button>
 <button id="filter-fab" onclick="openFilterSheet()" aria-label="Abrir filtros avançados">⚙</button>
 
 <script src="../phonetic-engine.js"></script>
@@ -1691,7 +1721,7 @@ function toggleAddPop(force) {
     let pop = document.getElementById('add-pop');
     let abrir = force !== undefined ? force : !pop.classList.contains('open');
     pop.classList.toggle('open', abrir);
-    document.getElementById('btn-add').classList.toggle('active', abrir);
+    ['btn-add','add-fab'].forEach(id => document.getElementById(id).classList.toggle('active', abrir));
     if (abrir) {
         document.getElementById('hist-dropdown').classList.remove('open');
         let inp = document.getElementById('add-input');
@@ -1792,9 +1822,19 @@ document.getElementById('add-input').addEventListener('keydown', e => {
 });
 document.addEventListener('click', e => {
     // composedPath: o botão "desfazer" some do DOM antes do evento chegar aqui
-    if (!e.composedPath().some(n => n.id === 'add-pop' || n.id === 'btn-add'))
+    if (!e.composedPath().some(n => ['add-pop','btn-add','add-fab'].includes(n.id)))
         toggleAddPop(false);
 });
+// Altura do teclado virtual → --kb, para o painel do "+" ficar acima dele
+if (window.visualViewport) {
+    const _syncKb = () => {
+        let vv = window.visualViewport;
+        let kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        document.documentElement.style.setProperty('--kb', kb + 'px');
+    };
+    visualViewport.addEventListener('resize', _syncKb);
+    visualViewport.addEventListener('scroll', _syncKb);
+}
 
 /* ═══════════════════════════════════════════════════════════════
    FAVORITOS
