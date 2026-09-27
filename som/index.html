@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14120f">
+<title>som — vizinhança sonora</title>
+<style>
+:root {
+  --bg: #f6f3ee; --card: #ffffff; --ink: #1d1a16; --mute: #756d62; --line: #e4ddd2;
+  --acc: #c2410c; --acc-ink: #ffffff; --ok: #15803d; --warn: #b45309; --rima: #7c3aed;
+  --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+  --r: 14px; --dock-h: 124px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14120f; --card: #1f1c18; --ink: #f1ece4; --mute: #a39a8c; --line: #332e27;
+    --acc: #fb923c; --acc-ink: #1d1a16; --ok: #4ade80; --warn: #fbbf24; --rima: #a78bfa;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom) + 24px);
+  overflow-x: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+b { font-weight: 700; }
+main { max-width: 560px; margin: 0 auto; padding: 12px 16px 0; }
+
+/* ── progresso do índice ── */
+#prog { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 30; pointer-events: none; }
+#prog i { display: block; height: 100%; width: 0; background: var(--acc); transition: width .2s; }
+#prog.fim { opacity: 0; transition: opacity .6s .3s; }
+
+/* ── trilha ── */
+.trilha { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 10px; padding: 0 16px; }
+.trilha::-webkit-scrollbar { display: none; }
+.trilha button { flex: none; font-size: 13px; color: var(--mute); padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); }
+.trilha button.at { color: var(--ink); border-color: var(--ink); }
+
+/* ── cartão do alvo ── */
+.alvo { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px; }
+.kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); font-weight: 700; }
+.alvo h1 { margin: 2px 0 0; font-size: 34px; line-height: 1.1; letter-spacing: -.01em; word-break: break-word; }
+.ipa { font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--mute); font-size: 14px; }
+.nota { font-size: 13px; color: var(--mute); margin: 8px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip {
+  min-height: 40px; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--line);
+  background: var(--bg); display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
+}
+.chip small { color: var(--mute); font-size: 12px; }
+.chip.ton { border-color: var(--acc); color: var(--acc); font-weight: 700; }
+.chip.at { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip:active, .row:active, .cell:active { transform: scale(.97); }
+.rot { font-size: 12px; color: var(--mute); margin: 14px 0 0; text-transform: uppercase; letter-spacing: .06em; }
+
+/* ── seções ── */
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); margin: 22px 0 8px; font-weight: 700; }
+h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.seg { display: flex; background: var(--card); border-radius: 99px; padding: 4px; box-shadow: var(--shadow); margin: 10px 0; }
+.seg button { flex: 1; min-height: 40px; border-radius: 99px; font-size: 14px; color: var(--mute); }
+.seg button.at { background: var(--ink); color: var(--bg); font-weight: 600; }
+
+/* ── lista de resultados ── */
+.lista { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.row {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center;
+  text-align: left; padding: 12px 16px; min-height: 56px; border-bottom: 1px solid var(--line);
+}
+.row:last-child { border-bottom: 0; }
+.row .w { font-size: 18px; word-break: break-word; }
+.row .w b { color: var(--acc); }
+.row .dir { display: flex; align-items: center; gap: 8px; justify-self: end; }
+.row .sub { grid-column: 1 / -1; font-size: 13px; color: var(--mute); }
+.pct { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; min-width: 2.2em; text-align: right; }
+.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.badge.b1 { color: var(--mute); border: 1px solid var(--line); }
+.badge.b2 { color: var(--rima); border: 1px solid currentColor; }
+.badge.b3 { background: var(--rima); color: var(--card); }
+.strip { grid-column: 1 / -1; display: grid; gap: 3px; margin-top: 4px; }
+.strip i { height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--ok) calc((1 - var(--q)) * 100%), var(--line)); }
+.strip i.t { outline: 1.5px solid var(--acc); outline-offset: 1px; }
+.legenda { display: grid; gap: 3px; font-size: 11px; color: var(--mute); text-align: center; padding: 8px 16px 0; }
+.legenda span.t { color: var(--acc); font-weight: 700; }
+.mais { width: 100%; min-height: 52px; color: var(--acc); font-weight: 600; }
+.barra { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; grid-column: 1 / -1; }
+.barra i { display: block; height: 100%; background: var(--acc); }
+
+/* ── grupos (terminação) ── */
+.grupo { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
+.gh { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 16px 8px; text-align: left; align-items: baseline; }
+.gh .tail { font-size: 22px; }
+.gh .tail b { color: var(--acc); }
+.gh .meta { grid-column: 1 / -1; font-size: 12px; color: var(--mute); display: flex; gap: 10px; flex-wrap: wrap; }
+.ws { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 14px; }
+.ws button { min-height: 36px; padding: 4px 12px; border-radius: 99px; background: var(--bg); font-size: 15px; }
+.ws button b { color: var(--acc); font-weight: 600; }
+.ws .plus { color: var(--acc); font-weight: 600; }
+
+/* ── mapas (consoantes, vogais, sílabas) ── */
+.mapa { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 10px; display: grid; gap: 4px; }
+.mapa .hd { font-size: 10px; color: var(--mute); text-align: center; align-self: end; text-transform: uppercase; letter-spacing: .04em; line-height: 1.1; }
+.mapa .rh { font-size: 10px; color: var(--mute); align-self: center; text-transform: uppercase; letter-spacing: .04em; line-height: 1.1; }
+.cell {
+  min-height: 44px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: color-mix(in oklab, var(--acc) calc(var(--s) * 70%), var(--bg)); font-size: 15px; line-height: 1.05; padding: 2px;
+}
+.cell small { font-size: 10px; opacity: .75; }
+.cell.eu { outline: 2.5px solid var(--ink); outline-offset: -2.5px; font-weight: 700; }
+.cell.vazio { background: transparent; color: var(--line); pointer-events: none; }
+.cell.forte { color: var(--acc-ink); }
+
+/* ── traços ── */
+.tracos { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-top: 12px; }
+.traco { background: var(--bg); border-radius: 10px; padding: 8px 10px; }
+.traco span { display: block; font-size: 11px; color: var(--mute); text-transform: uppercase; letter-spacing: .05em; }
+.traco b { font-size: 15px; }
+.pares { grid-column: 1 / -1; font-size: 13px; color: var(--mute); }
+.pares em { font-style: normal; color: var(--ink); }
+
+/* ── início ── */
+.hero h1 { font-size: 40px; margin: 8px 0 4px; letter-spacing: -.02em; }
+.hero p { color: var(--mute); margin: 0 0 16px; }
+.casos { display: grid; gap: 10px; }
+.caso { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: center; min-height: 64px; width: 100%; }
+.caso .q { font-size: 22px; font-weight: 700; color: var(--acc); min-width: 3.4em; grid-row: span 2; }
+.caso .t { font-weight: 600; }
+.caso .d { font-size: 13px; color: var(--mute); }
+details { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 4px 16px; margin-top: 12px; }
+summary { min-height: 48px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+details p, details li { font-size: 14px; color: var(--mute); }
+details code { background: var(--bg); padding: 1px 6px; border-radius: 6px; color: var(--ink); }
+.espera { text-align: center; color: var(--mute); padding: 32px 16px; font-size: 14px; }
+.vazio-msg { text-align: center; color: var(--mute); padding: 24px 16px; }
+
+/* ── dock (zona do dedão) ── */
+#dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  padding: 8px 0 calc(10px + env(safe-area-inset-bottom));
+}
+#dock .in { max-width: 560px; margin: 0 auto; }
+#modos { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 0 16px 8px; }
+#modos::-webkit-scrollbar { display: none; }
+#modos button { flex: none; min-height: 36px; padding: 4px 14px; border-radius: 99px; font-size: 14px; color: var(--mute); border: 1px solid var(--line); background: var(--card); }
+#modos button.at { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+#modos button.auto-hint { border-color: var(--acc); color: var(--acc); }
+#busca { display: flex; gap: 8px; padding: 0 16px; align-items: center; }
+#busca input {
+  flex: 1; min-width: 0; height: 52px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--card);
+  color: var(--ink); font: inherit; font-size: 18px; padding: 0 16px; outline: none; -webkit-appearance: none;
+}
+#busca input:focus { border-color: var(--acc); }
+.redondo { flex: none; width: 52px; height: 52px; border-radius: 16px; background: var(--card); border: 1.5px solid var(--line); font-size: 22px; display: grid; place-items: center; }
+.redondo:disabled { opacity: .35; }
+.redondo.go { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+
+/* ── ajustes (bottom sheet) ── */
+#veu { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s; }
+#veu.on { opacity: 1; pointer-events: auto; }
+#folha {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--card); border-radius: 20px 20px 0 0;
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform .25s ease;
+  max-width: 560px; margin: 0 auto; max-height: 85vh; overflow-y: auto; visibility: hidden;
+}
+#folha.on { transform: none; visibility: visible; }
+#folha .puxa { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+#folha h3 { margin: 18px 0 4px; font-size: 16px; }
+#folha p { margin: 0 0 8px; font-size: 13px; color: var(--mute); }
+input[type=range] { width: 100%; height: 44px; accent-color: var(--acc); }
+.ext { display: flex; justify-content: space-between; font-size: 12px; color: var(--mute); margin-top: -6px; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; }
+.switch input { width: 24px; height: 24px; accent-color: var(--acc); flex: none; }
+.fechar { width: 100%; min-height: 52px; border-radius: 16px; background: var(--ink); color: var(--bg); font-weight: 600; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div id="prog"><i></i></div>
+<main id="main"></main>
+
+<div id="dock"><div class="in">
+  <div id="modos" role="tablist" aria-label="Zoom">
+    <button data-modo="auto">Auto</button>
+    <button data-modo="palavra">Palavra</button>
+    <button data-modo="fim">Fim ‑x</button>
+    <button data-modo="inicio">Início x‑</button>
+    <button data-modo="silaba">Sílaba</button>
+    <button data-modo="som">Som</button>
+  </div>
+  <form id="busca" autocomplete="off">
+    <button type="button" class="redondo" id="voltar" aria-label="Voltar">‹</button>
+    <input id="q" type="search" enterkeyhint="search" placeholder="degustar · ge · t · -bula"
+           autocorrect="off" autocapitalize="none" spellcheck="false" aria-label="Buscar">
+    <button type="button" class="redondo" id="ajustes" aria-label="Ajustes">⚙</button>
+  </form>
+</div></div>
+
+<div id="veu"></div>
+<div id="folha" role="dialog" aria-label="Ajustes">
+  <div class="puxa"></div>
+  <h3>Peso da rima</h3>
+  <p>Quanto uma rima empurra a palavra para cima na lista de palavras. Em zero, só a semelhança de som conta.</p>
+  <input type="range" id="c-rima" min="0" max="3" step="0.5">
+  <div class="ext"><span>só som</span><span id="c-rima-v"></span><span>rima manda</span></div>
+
+  <h3>Lente</h3>
+  <p><b>Boca</b> mede como o som é produzido. <b>Ouvido</b> mede como ele é percebido: trocar o lugar (g→d) passa despercebido; trocar a voz (g→k) ou a nasalidade salta aos ouvidos.</p>
+  <div class="seg" id="c-lente"><button data-v="boca">Boca</button><button data-v="ouvido">Ouvido</button></div>
+
+  <h3>Fala</h3>
+  <label class="switch"><span>O <b>r</b> final cai<br><small style="color:var(--mute)">degustar ≈ degustá, como na fala e no canto</small></span><input type="checkbox" id="c-rmudo"></label>
+
+  <button class="fechar" id="fechar">Pronto</button>
+</div>
+
+<script src="../phonetic-engine.js"></script>
+<script src="engine.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const main = $('#main'), inp = $('#q');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const pct = x => Math.round(Math.max(0, Math.min(1, x)) * 100);
+
+/* ═════════ ajustes ═════════ */
+const cfg = { pesoRima: 1.5, lente: 'boca', rMudo: false };
+try { Object.assign(cfg, JSON.parse(localStorage.getItem('som.cfg') || '{}')); } catch (e) {}
+function salvarCfg() { try { localStorage.setItem('som.cfg', JSON.stringify(cfg)); } catch (e) {} }
+function aplicarCfg() { Som.setLente(cfg.lente); Som.setRFinalMudo(cfg.rMudo); }
+aplicarCfg();
+
+/* ═════════ worker ═════════ */
+let worker = null, pronto = false, inventario = null, reqId = 0;
+const pend = new Map();
+try {
+  worker = new Worker('worker.js');
+  worker.onmessage = ({ data: m }) => {
+    if (m.tipo === 'progresso') $('#prog i').style.width = (100 * m.feito / m.total) + '%';
+    else if (m.tipo === 'pronto') {
+      pronto = true; inventario = m.inventario;
+      $('#prog').classList.add('fim');
+      render();
+    } else if (m.tipo === 'resposta') { const f = pend.get(m.id); pend.delete(m.id); f && f(m.res); }
+  };
+  worker.onerror = () => falhaWorker();
+} catch (e) { falhaWorker(); }
+function falhaWorker() {
+  worker = null;
+  main.insertAdjacentHTML('afterbegin', `<p class="nota" style="color:var(--warn)">O dicionário não carregou. Abra a página por um servidor local
+    (<code>python -m http.server</code> na raiz do projeto) — navegadores bloqueiam isso em <code>file://</code>. O zoom de <b>som</b> funciona mesmo assim.</p>`);
+}
+function pedir(msg) {
+  return new Promise(res => { const id = ++reqId; pend.set(id, res); worker.postMessage({ ...msg, id, cfg }); });
+}
+
+/* ═════════ rotas (hash = histórico do botão voltar do celular) ═════════ */
+const MODOS = ['palavra', 'fim', 'inicio', 'silaba', 'som'];
+function lerHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (!h) return null;
+  const m = h.match(/^(palavra|fim|inicio|silaba|som):(.+)$/);
+  return m ? { forcado: m[1], texto: m[2] } : { forcado: null, texto: h };
+}
+function ir(texto, forcado) {
+  const h = '#' + encodeURIComponent(forcado ? forcado + ':' + texto : texto);
+  if (h === location.hash) { render(); return; }
+  memScroll.set(location.hash, scrollY);
+  location.hash = h;
+}
+const memScroll = new Map();
+addEventListener('hashchange', () => { render(); });
+
+function resolver(q) {
+  let t = q.texto.trim().toLowerCase();
+  if (!q.forcado) return Som.interpretar(t);
+  t = t.replace(/^[-…]+|-+$/g, '').replace(/[\/\[\]]/g, '');
+  if (!t) return null;
+  if (q.forcado === 'som') {
+    if (Som.CONS_PT[t] || Som.VOG[t]) return { modo: 'som', sons: [t], texto: t };
+    if (Som.LETRA_SONS[t]) return { modo: 'som', sons: Som.LETRA_SONS[t], letra: t, texto: t };
+    const T = Som.transcrever(t);   // "som:ge" → os sons de ge
+    if (!T) return null;
+    const s0 = T.sil[0];
+    return { modo: 'som', sons: [...s0.on, s0.nu].filter(Boolean), texto: t };
+  }
+  return { modo: q.forcado, texto: t };
+}
+// como a consulta aparece na caixa
+function rotulo(it) {
+  return it.modo === 'fim' ? '-' + it.texto : it.modo === 'inicio' ? it.texto + '-' : it.texto;
+}
+
+/* ═════════ trilha ═════════ */
+const trilha = [];
+function registrarTrilha(h, txt) {
+  const i = trilha.findIndex(x => x.h === h);
+  if (i >= 0) trilha.splice(i, 1);
+  trilha.push({ h, txt });
+  if (trilha.length > 12) trilha.shift();
+}
+function htmlTrilha() {
+  if (trilha.length < 2) return '';
+  return `<nav class="trilha">${trilha.map(x =>
+    `<button data-hash="${esc(x.h)}" class="${x.h === location.hash ? 'at' : ''}">${esc(x.txt)}</button>`).join('')}</nav>`;
+}
+
+/* ═════════ render ═════════ */
+let token = 0;
+async function render() {
+  const q = lerHash();
+  const meu = ++token;
+  $('#voltar').disabled = !q;
+  if (!q) { inp.value = ''; marcarModo(null, null); main.innerHTML = htmlInicio(); scrollTo(0, 0); return; }
+  const it = resolver(q);
+  if (!it) { main.innerHTML = `<p class="vazio-msg">Não entendi “${esc(q.texto)}”.</p>`; return; }
+  inp.value = rotulo(it);
+  marcarModo(q.forcado, it.modo);
+  registrarTrilha(location.hash, rotulo(it));
+  const alvoScroll = memScroll.get(location.hash) || 0;
+  const pintar = html => { if (meu === token) main.innerHTML = htmlTrilha() + html; };
+  const fns = { palavra: viewPalavra, fim: viewTrecho, inicio: viewTrecho, silaba: viewSilaba, som: viewSom };
+  await fns[it.modo](it, pintar, () => meu === token);
+  if (meu === token) {
+    const t = main.querySelector('.trilha .at'); if (t) t.scrollIntoView({ inline: 'center', block: 'nearest' });
+    scrollTo(0, alvoScroll);
+  }
+}
+
+function esperaIndice() {
+  return `<p class="espera">${worker ? 'Lendo as 145 mil palavras do dicionário… (só na primeira vez)' : 'Dicionário indisponível.'}</p>`;
+}
+
+function marcarModo(forcado, detectado) {
+  document.querySelectorAll('#modos button').forEach(b => {
+    const m = b.dataset.modo;
+    b.classList.toggle('at', forcado ? m === forcado : m === 'auto' && !!detectado);
+    b.classList.toggle('auto-hint', !forcado && m === detectado);
+  });
+}
+
+/* ═════════ INÍCIO ═════════ */
+function htmlInicio() {
+  const casos = [
+    ['degustar', 'Palavra', 'Vizinhas de som, com bônus para quem rima. Cada linha mostra onde a semelhança acontece.'],
+    ['-bula', 'Terminação', 'Finais que soam como “-bula”, agrupados: -pula, -bola, -vula, -gula…'],
+    ['ge', 'Sílaba', 'Sílabas vizinhas de /ʒe/ num mapa ataque × vogal, e onde cada uma aparece.'],
+    ['t', 'Som', 'Os sons da letra t, seus traços, os vizinhos e pares mínimos (tia → dia).'],
+  ];
+  return `<section class="hero">
+    <div class="kicker">som</div>
+    <h1>Navegue semelhanças.</h1>
+    <p>Um mesmo microscópio com quatro aumentos: palavra, terminação, sílaba e som. Tudo é tocável: cada resultado vira a próxima busca.</p>
+  </section>
+  <div class="casos">${casos.map(([q, t, d]) =>
+    `<button class="caso" data-nav="${esc(q)}"><span class="q">${esc(q)}</span><span class="t">${t}</span><span class="d">${d}</span></button>`).join('')}
+  </div>
+  <details>
+    <summary>Como escrever a busca</summary>
+    <ul>
+      <li><code>degustar</code> — palavra inteira (ou inventada: <code>degustinho</code>)</li>
+      <li><code>-bula</code> — terminação · <code>ge-</code> — começo</li>
+      <li><code>ge</code>, <code>tra</code>, <code>mar</code> — uma sílaba (até 4 letras)</li>
+      <li><code>t</code>, <code>lh</code>, <code>ch</code>, <code>é</code> — letra ou dígrafo · <code>/tʃ/</code> — som em IPA</li>
+    </ul>
+    <p>Os botões acima da caixa forçam um zoom: “mar” como palavra, sílaba ou som.</p>
+  </details>
+  <details>
+    <summary>Como a distância é medida</summary>
+    <p><b>1. Som, não letra.</b> “degustar” vira /de.gus.ˈtaɾ/. O c de <i>casa</i> e o de <i>cedo</i> são sons diferentes.</p>
+    <p><b>2. Cada som é um pacote de traços.</b> Consoantes: tem voz? onde a boca fecha? como o ar sai? Vogais: altura, frente/trás, lábios, nariz. Quanto mais traços diferem, maior a distância.</p>
+    <p><b>3. Sílaba = ataque + vogal + coda.</b> A vogal pesa mais: é o coração da sílaba.</p>
+    <p><b>4. A posição pesa.</b> A tônica e o que vem depois dela (a zona da rima) são o palco; as sílabas antes da tônica são a coxia — trocas ali quase não se notam.</p>
+    <p><b>5. Soma ponderada.</b> As sílabas são alinhadas a partir do fim da palavra e as diferenças somadas com esses pesos. A barrinha sob cada resultado mostra, sílaba a sílaba, onde bate (verde) e onde diverge.</p>
+    <p><b>Rima</b> entra como bônus ajustável (⚙): <i>toante</i> = mesmas vogais desde a tônica; <i>rima</i> = mesmo som desde a tônica; <i>rima rica</i> = rima + mesmo ataque na tônica.</p>
+  </details>`;
+}
+
+/* ═════════ PALAVRA ═════════ */
+let filtroPalavra = 'geral', mostrarPalavra = 40;
+async function viewPalavra(it, pintar, vivo) {
+  const T = Som.transcrever(it.texto);
+  if (!T) return pintar(`<p class="vazio-msg">Sem vogal, sem sílaba.</p>`);
+  const g = T.sil.map(x => x.g);
+  const cab = cabecalhoPalavra(it.texto, T, g);
+  if (!pronto) return pintar(cab + esperaIndice());
+  pintar(cab + `<p class="espera">Comparando com 145 mil palavras…</p>`);
+  const r = await pedir({ tipo: 'palavra', texto: it.texto, pesoRima: cfg.pesoRima });
+  if (!vivo() || !r) return;
+  lastPalavra = { r, T, g };
+  pintar(cab + htmlResultadosPalavra());
+}
+let lastPalavra = null;
+
+function cabecalhoPalavra(texto, T, g) {
+  const ti = T.ti, n = g.length;
+  const fins = [];
+  fins.push('-' + g.slice(ti).join(''));
+  if (ti > 0) fins.push('-' + g.slice(ti - 1).join(''));
+  if (n > 1) fins.push(g[0] + '-');
+  return `<section class="alvo">
+    <div class="kicker">palavra · ${n} sílaba${n > 1 ? 's' : ''}</div>
+    <h1>${esc(texto)}</h1>
+    <div class="ipa">/${esc(Som.ipaPalavra(T))}/</div>
+    <p class="rot">Aproximar numa sílaba</p>
+    <div class="chips">${g.map((s, i) => `<button class="chip ${i === ti ? 'ton' : ''}" data-nav="${esc(s)}" data-forca="silaba">${esc(s)}${i === ti ? ' <small>tônica</small>' : ''}</button>`).join('')}</div>
+    <p class="rot">Ou num trecho</p>
+    <div class="chips">${fins.map(f => `<button class="chip" data-nav="${esc(f)}">${esc(f)}</button>`).join('')}</div>
+  </section>`;
+}
+
+function htmlResultadosPalavra() {
+  const { r, T, g } = lastPalavra;
+  const lst = r[filtroPalavra];
+  const n = g.length, cols = `grid-template-columns: repeat(${n}, 1fr)`;
+  const seg = [['geral', 'Tudo'], ['rimam', 'Rimam'], ['naoRimam', 'Não rimam']];
+  const linhas = lst.slice(0, mostrarPalavra).map(x => {
+    const w = x.g.map((s, i) => i === x.ti ? `<b>${esc(s)}</b>` : esc(s)).join('');
+    return `<button class="row" data-nav="${esc(x.w)}">
+      <span class="w">${w}</span>
+      <span class="dir">${x.nivel ? `<span class="badge b${x.nivel}">${Som.RIMA_LABEL[x.nivel]}</span>` : ''}<span class="pct">${pct(x.sim)}</span></span>
+      <span class="strip" style="${cols}">${x.traco.map((q, i) => `<i class="${i === T.ti ? 't' : ''}" style="--q:${q.toFixed(2)}"></i>`).join('')}</span>
+    </button>`;
+  }).join('');
+  return `<div class="seg" data-grupo="filtroPalavra">${seg.map(([k, l]) =>
+      `<button data-v="${k}" class="${filtroPalavra === k ? 'at' : ''}">${l}</button>`).join('')}</div>
+    <div class="lista">
+      <div class="legenda" style="${cols}">${g.map((s, i) => `<span class="${i === T.ti ? 't' : ''}">${esc(s)}</span>`).join('')}</div>
+      ${linhas || '<p class="vazio-msg">Nada aqui.</p>'}
+      ${lst.length > mostrarPalavra ? `<button class="mais" data-acao="maisPalavra">Mostrar mais</button>` : ''}
+    </div>
+    <p class="nota">O número é a semelhança de som (0–100). A barrinha mostra cada sílaba de “${esc(T.w)}”: verde onde a candidata bate, apagada onde diverge. A ordem soma a semelhança e o bônus de rima (⚙ ${cfg.pesoRima}).</p>`;
+}
+
+/* ═════════ TRECHO (fim / início) ═════════ */
+const abertos = new Set();
+async function viewTrecho(it, pintar, vivo) {
+  const lado = it.modo;
+  const rot = rotulo(it);
+  const cab = r => `<section class="alvo">
+    <div class="kicker">${lado === 'fim' ? 'terminação' : 'começo'}</div>
+    <h1>${esc(rot)}</h1>
+    ${r ? `<div class="ipa">/${esc(r.ipa)}/</div>` : ''}
+    ${r && !r.tonicaConhecida ? `<p class="nota">Sem acento, não sei onde cai a tônica — comparo só o som. Cada grupo diz onde ela cai de fato.</p>` : ''}
+    <p class="rot">Aproximar</p>
+    <div class="chips">${Som.silabificar(it.texto).map(s => `<button class="chip" data-nav="${esc(s)}" data-forca="silaba">${esc(s)}</button>`).join('')}
+      <button class="chip" data-nav="${esc(it.texto)}" data-forca="palavra">“${esc(it.texto)}” como palavra</button></div>
+  </section>`;
+  if (!pronto) return pintar(cab(null) + esperaIndice());
+  pintar(cab(null) + `<p class="espera">Procurando finais parecidos…</p>`);
+  const r = await pedir({ tipo: 'trecho', texto: it.texto, lado });
+  if (!vivo()) return;
+  if (!r || !r.grupos.length) return pintar(cab(r) + `<p class="vazio-msg">Nenhum ${lado === 'fim' ? 'final' : 'começo'} parecido.</p>`);
+  const grupos = r.grupos.map(gr => {
+    const tail = gr.grafia.replace(/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]+/g, m => `<b>${esc(m.toLowerCase())}</b>`);
+    const lim = abertos.has(gr.grafia) ? 60 : 10;
+    const k = gr.grafia.length;
+    const ws = gr.palavras.slice(0, lim).map(w => {
+      const corte = lado === 'fim' ? [w.slice(0, -k), w.slice(-k)] : [w.slice(0, k), w.slice(k)];
+      const html = lado === 'fim' ? esc(corte[0]) + '<b>' + esc(corte[1]) + '</b>' : '<b>' + esc(corte[0]) + '</b>' + esc(corte[1]);
+      return `<button data-nav="${esc(w)}">${html}</button>`;
+    }).join('');
+    const resto = gr.n - Math.min(gr.n, lim);
+    const tonTxt = gr.tonDentro < 0 ? 'átono (tônica antes)' : 'tônica aqui';
+    const nav = lado === 'fim' ? '-' + gr.grafia.toLowerCase() : gr.grafia.toLowerCase() + '-';
+    return `<article class="grupo">
+      <button class="gh" data-nav="${esc(nav)}">
+        <span class="tail">${lado === 'fim' ? '-' : ''}${tail}${lado === 'inicio' ? '-' : ''}</span><span class="pct">${pct(gr.sim)}</span>
+        <span class="meta"><span class="ipa">/${esc(gr.ipa)}/</span><span>${tonTxt}</span><span>${gr.n} palavra${gr.n > 1 ? 's' : ''}</span></span>
+        <span class="barra"><i style="width:${pct(gr.sim)}%"></i></span>
+      </button>
+      <div class="ws">${ws}${resto > 0 && lim < 60 ? `<button class="plus" data-abrir="${esc(gr.grafia)}">+${resto}</button>` : ''}</div>
+    </article>`;
+  }).join('');
+  pintar(cab(r) + `<h2>Variantes <small>· mais parecidas primeiro</small></h2>` + grupos);
+}
+
+/* ═════════ SÍLABA ═════════ */
+let abaSilaba = 'tonica';
+const VOGAIS_MAPA = ['i', 'e', 'ɛ', 'a', 'ɔ', 'o', 'u'];
+async function viewSilaba(it, pintar, vivo) {
+  const T = Som.transcrever(it.texto);
+  if (!T) return pintar(`<p class="vazio-msg">Sem vogal, sem sílaba.</p>`);
+  if (T.sil.length > 1) return viewTrecho({ modo: 'inicio', texto: it.texto }, pintar, vivo);
+  const S = T.sil[0];
+  const partes = [
+    ...S.on.map(c => ['ataque', c]),
+    ['vogal', S.nu],
+    ...(S.gl ? [...S.gl].map(c => ['semivogal', c]) : []),
+    ...S.co.map(c => ['coda', c]),
+  ];
+  const cab = `<section class="alvo">
+    <div class="kicker">sílaba</div>
+    <h1>${esc(it.texto)}</h1>
+    <div class="ipa">/${esc(Som.ipaSil(S))}/</div>
+    <p class="rot">Aproximar num som</p>
+    <div class="chips">${partes.map(([p, s]) => `<button class="chip" data-nav="${esc(s)}" data-forca="som">/${esc(s)}/ <small>${p}</small></button>`).join('')}</div>
+  </section>`;
+  if (!pronto) return pintar(cab + esperaIndice());
+  pintar(cab + htmlMapaSilaba(S) + `<p class="espera">Buscando vizinhas…</p>`);
+  const r = await pedir({ tipo: 'silaba', texto: it.texto });
+  if (!vivo() || !r) return;
+  lastSilaba = { S, r, it };
+  pintar(cab + htmlMapaSilaba(S) + htmlVizinhasSilaba());
+}
+let lastSilaba = null;
+
+function htmlMapaSilaba(S) {
+  if (!inventario) return '';
+  const on0 = S.on.join('');
+  const base = S.on.length ? S.on : [];
+  const cands = [''].concat(Som.CONS_LIST.filter(c => c !== 'w' && c !== 'j'));
+  const custoOn = c => Som.distSilaba({ on: base, nu: 'a', gl: '', co: [], t: false }, { on: c ? [c] : [], nu: 'a', gl: '', co: [], t: false }, false);
+  let linhas = cands.filter(c => c !== on0).sort((a, b) => custoOn(a) - custoOn(b)).slice(0, 8);
+  linhas = [on0, ...linhas];
+  const cel = (on, v) => {
+    const x = { on: on ? (on === on0 ? base : [on]) : [], nu: v, gl: S.gl, co: S.co, t: false };
+    const key = Som.somSil(x);
+    const inv = inventario[key];
+    const d = Som.distSilaba(S, x, false);
+    const s = Math.max(0, 1 - d / 2.4);
+    const eu = key === Som.somSil(S);
+    if (!inv) return `<span class="cell vazio">·</span>`;
+    return `<button class="cell ${eu ? 'eu' : ''} ${s > .72 ? 'forte' : ''}" style="--s:${s.toFixed(2)}" data-nav="${esc(inv.g[0])}" data-forca="silaba">${esc(inv.g[0])}</button>`;
+  };
+  const cols = `grid-template-columns: 34px repeat(${VOGAIS_MAPA.length}, 1fr)`;
+  return `<h2>Mapa <small>· ataque × vogal · cor = proximidade</small></h2>
+    <div class="mapa" style="${cols}">
+      <span></span>${VOGAIS_MAPA.map(v => `<span class="hd">${v}</span>`).join('')}
+      ${linhas.map(on => `<span class="rh">${on ? esc(on) : '∅'}</span>` + VOGAIS_MAPA.map(v => cel(on, v)).join('')).join('')}
+    </div>
+    <p class="nota">Linhas: os ataques mais próximos de /${esc(on0 || '∅')}/. Colunas: as vogais orais, da mais fechada na frente (i) à mais fechada atrás (u). “·” = combinação que não existe no dicionário.</p>`;
+}
+
+function difSilaba(a, b) {
+  const out = [];
+  const oa = a.on.join(''), ob = b.on.join('');
+  if (oa !== ob) {
+    if (a.on.length === 1 && b.on.length === 1) out.push(`${a.on[0]}→${b.on[0]}: ${Som.explicarDiferenca(a.on[0], b.on[0])}`);
+    else if (!ob) out.push('sem ataque');
+    else if (!oa) out.push('ganha ataque ' + ob);
+    else out.push(`ataque ${oa}→${ob}`);
+  }
+  if (a.nu !== b.nu) out.push(`${a.nu}→${b.nu}: ${Som.explicarDiferenca(a.nu, b.nu)}`);
+  if (a.gl !== b.gl) out.push(b.gl ? 'vira ditongo' : 'desfaz o ditongo');
+  const ca = a.co.join(''), cb = b.co.join('');
+  if (ca !== cb) out.push(!cb ? 'perde a coda' : !ca ? 'ganha coda ' + cb : `coda ${ca}→${cb}`);
+  return out.join(' · ') || 'mesmo som';
+}
+
+function htmlVizinhasSilaba() {
+  const { S, r } = lastSilaba;
+  const viz = r.vizinhas.filter(v => v.key !== r.chave).slice(0, 30).map(v => `
+    <button class="row" data-nav="${esc(v.grafias[0])}" data-forca="silaba">
+      <span class="w">${v.grafias.map((g, i) => i ? `<small style="color:var(--mute)"> ${esc(g)}</small>` : `<b>${esc(g)}</b>`).join('')}</span>
+      <span class="dir"><span class="ipa">/${esc(v.key)}/</span><span class="pct">${pct(v.sim)}</span></span>
+      <span class="sub">${esc(difSilaba(S, v.x))} · ${v.n.toLocaleString('pt-BR')} ocorrências</span>
+    </button>`).join('');
+  const ex = r.exemplos;
+  const abas = [['tonica', 'Tônica'], ['inicio', 'Início'], ['meio', 'Meio'], ['fim', 'Fim']];
+  const lst = ex[abaSilaba] || [];
+  const ws = lst.map(e => `<button data-nav="${esc(e.w)}">${e.sil.map((x, k) => k === e.k ? `<b>${esc(x.g)}</b>` : esc(x.g)).join('')}</button>`).join('');
+  return `<h2>Onde /${esc(r.chave)}/ aparece</h2>
+    <div class="seg" data-grupo="abaSilaba">${abas.map(([k, l]) => `<button data-v="${k}" class="${abaSilaba === k ? 'at' : ''}">${l} <small>${ex[k].length >= 14 ? '14+' : ex[k].length}</small></button>`).join('')}</div>
+    <div class="grupo"><div class="ws" style="padding-top:14px">${ws || '<span class="nota">nenhuma</span>'}</div></div>
+    <h2>Sílabas vizinhas <small>· do dicionário</small></h2>
+    <div class="lista">${viz}</div>`;
+}
+
+/* ═════════ SOM ═════════ */
+const LUGAR = { lab: 'lábios', den: 'dentes', pal: 'céu da boca', vel: 'fundo' };
+const MODO = { exp: 'explosiva', afr: 'africada', chi: 'chiada', nas: 'nasal', liq: 'líquida', sem: 'semivogal' };
+async function viewSom(it, pintar, vivo) {
+  const sons = it.sons;
+  if (!sons.length) return pintar(`<section class="alvo"><div class="kicker">letra</div><h1>${esc(it.texto)}</h1><p class="nota">O h, sozinho, é mudo em português: não tem som próprio. Veja <button class="chip" data-nav="ch">ch</button> <button class="chip" data-nav="lh">lh</button> <button class="chip" data-nav="nh">nh</button></p></section>`);
+  const sym = sons[0];
+  const vog = Som.isVog(sym);
+  const info = vog ? Som.VOG[sym] : Som.CONS_PT[sym];
+  const PE = PhoneticEngine.CONSONANTS[sym] || {};
+  const outros = sons.length > 1 ? `<p class="rot">A ${it.letra ? 'letra ' + esc(it.letra) : 'busca'} tem ${sons.length} sons</p>
+    <div class="chips">${sons.map((s, i) => {
+      const ex = Som.SONS_EXEMPLO_LETRA[(it.letra || '') + '|' + s] || (Som.CONS_PT[s] || Som.VOG[s] || {}).ex || '';
+      return `<button class="chip ${i === 0 ? 'at' : ''}" data-nav="${esc(s)}" data-forca="som">/${esc(s)}/ <small>${esc(ex)}</small></button>`;
+    }).join('')}</div>` : '';
+  const tracos = vog
+    ? [['altura', ['aberta', 'meio-aberta', 'meio-fechada', 'fechada'][Math.round(info.h)] || 'aberta'],
+       ['posição', ['frente', 'centro', 'trás'][info.b]], ['lábios', info.r ? 'em bico' : 'soltos'], ['nariz', info.n ? 'nasal' : 'oral']]
+    : [['voz', PE.voiced ? 'vibra' : 'não vibra'], ['onde', LUGAR[info.lugar]], ['como', MODO[info.modo]]];
+  const cab = `<section class="alvo">
+    <div class="kicker">${vog ? 'vogal' : 'consoante'}</div>
+    <h1>/${esc(sym)}/ <span style="font-size:18px;color:var(--mute);font-weight:400">${esc(info.graf.join(' · '))} — ${esc(info.ex)}</span></h1>
+    <div class="tracos">${tracos.map(([k, v]) => `<div class="traco"><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+    ${outros}
+    <p class="nota">Lente: <b>${cfg.lente}</b> (⚙ muda).</p>
+  </section>`;
+  const viz = Som.vizinhosSom(sym);
+  const dist = Object.fromEntries(viz.map(v => [v.s, v.d]));
+  dist[sym] = 0;
+  const mapa = vog ? htmlMapaVogais(sym, dist) : htmlMapaConsoantes(sym, dist);
+  const linhas = pares => viz.map(v => {
+    const inf = Som.isVog(v.s) ? Som.VOG[v.s] : Som.CONS_PT[v.s];
+    const pm = pares && pares[v.s] && pares[v.s].length
+      ? `<span class="pares">${pares[v.s].map(p => `<em>${esc(p[0])}</em>→<em>${esc(p[1])}</em>`).join(' · ')}</span>` : '';
+    return `<button class="row" data-nav="${esc(v.s)}" data-forca="som">
+      <span class="w"><b>/${esc(v.s)}/</b> <small style="color:var(--mute)">${esc(inf.graf.join(' · '))} — ${esc(inf.ex)}</small></span>
+      <span class="dir"><span class="pct">${pct(1 - v.d)}</span></span>
+      <span class="sub">${esc(v.por)}</span>
+      <span class="barra"><i style="width:${pct(1 - v.d)}%"></i></span>
+      ${pm}
+    </button>`;
+  }).join('');
+  const corpo = pares => cab + `<h2>Mapa <small>· cor = proximidade de /${esc(sym)}/</small></h2>` + mapa +
+    `<h2>Vizinhos <small>· ${vog ? '' : 'com pares mínimos: trocar só esse som vira outra palavra'}</small></h2><div class="lista">${linhas(pares)}</div>`;
+  pintar(corpo(null));
+  if (!pronto || vog) return;
+  const r = await pedir({ tipo: 'som', som: sym, alvos: viz.slice(0, 14).map(v => v.s) });
+  if (!vivo() || !r) return;
+  const y = scrollY;
+  pintar(corpo(r.pares));
+  scrollTo(0, y);
+}
+
+function htmlMapaConsoantes(sym, dist) {
+  const lugares = ['lab', 'den', 'pal', 'vel'], modos = ['exp', 'afr', 'chi', 'nas', 'liq', 'sem'];
+  const cols = `grid-template-columns: 62px repeat(4, 1fr)`;
+  const cel = (l, m) => {
+    const ss = Som.CONS_LIST.filter(c => Som.CONS_PT[c].lugar === l && Som.CONS_PT[c].modo === m);
+    if (!ss.length) return `<span class="cell vazio">·</span>`;
+    return `<span style="display:flex;gap:3px">${ss.map(c => {
+      const s = 1 - (dist[c] ?? 1);
+      return `<button class="cell ${c === sym ? 'eu' : ''} ${s > .72 ? 'forte' : ''}" style="flex:1;--s:${s.toFixed(2)}" data-nav="${esc(c)}" data-forca="som">${esc(c)}<small>${esc(Som.CONS_PT[c].graf[0])}</small></button>`;
+    }).join('')}</span>`;
+  };
+  return `<div class="mapa" style="${cols}"><span></span>${lugares.map(l => `<span class="hd">${LUGAR[l]}</span>`).join('')}
+    ${modos.map(m => `<span class="rh">${MODO[m]}</span>` + lugares.map(l => cel(l, m)).join('')).join('')}</div>
+    <p class="nota">Pares na mesma casa: o da esquerda é surdo, o da direita tem voz.</p>`;
+}
+
+function htmlMapaVogais(sym, dist) {
+  const grade = [['i', '', 'u'], ['e', '', 'o'], ['ɛ', '', 'ɔ'], ['', 'a', ''], ['ĩ', 'ẽ', 'ũ'], ['', 'ã', 'õ']];
+  const rot = ['fechadas', 'meio-fech.', 'meio-abertas', 'aberta', 'nasais', ''];
+  const cel = v => {
+    if (!v) return `<span class="cell vazio"></span>`;
+    const s = 1 - (dist[v] ?? 1);
+    return `<button class="cell ${v === sym ? 'eu' : ''} ${s > .72 ? 'forte' : ''}" style="--s:${s.toFixed(2)}" data-nav="${esc(v)}" data-forca="som">${esc(v)}<small>${esc(Som.VOG[v].ex)}</small></button>`;
+  };
+  return `<div class="mapa" style="grid-template-columns: 74px repeat(3, 1fr)"><span></span><span class="hd">frente</span><span class="hd">centro</span><span class="hd">trás</span>
+    ${grade.map((l, i) => `<span class="rh">${rot[i]}</span>` + l.map(cel).join('')).join('')}</div>`;
+}
+
+/* ═════════ eventos ═════════ */
+main.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.hash) { memScroll.set(location.hash, scrollY); location.hash = b.dataset.hash; return; }
+  if (b.dataset.nav !== undefined) { ir(b.dataset.nav, b.dataset.forca || null); return; }
+  if (b.dataset.abrir) { abertos.add(b.dataset.abrir); memScroll.set(location.hash, scrollY); render(); return; }
+  if (b.dataset.acao === 'maisPalavra') { mostrarPalavra += 60; rePintarPalavra(); return; }
+  const seg = b.closest('.seg');
+  if (seg && seg.dataset.grupo && b.dataset.v) {
+    if (seg.dataset.grupo === 'filtroPalavra') { filtroPalavra = b.dataset.v; mostrarPalavra = 40; rePintarPalavra(); }
+    if (seg.dataset.grupo === 'abaSilaba') { abaSilaba = b.dataset.v; const y = scrollY; main.innerHTML = htmlTrilha() + main.querySelector('.alvo').outerHTML + htmlMapaSilaba(lastSilaba.S) + htmlVizinhasSilaba(); scrollTo(0, y); }
+  }
+});
+function rePintarPalavra() {
+  const y = scrollY;
+  const alvo = main.querySelector('.alvo').outerHTML;
+  main.innerHTML = htmlTrilha() + alvo + htmlResultadosPalavra();
+  scrollTo(0, y);
+}
+
+$('#busca').addEventListener('submit', e => {
+  e.preventDefault();
+  const t = inp.value.trim();
+  if (!t) return;
+  inp.blur();
+  const forcado = [...document.querySelectorAll('#modos button.at')].map(b => b.dataset.modo).find(m => m !== 'auto');
+  // escrever "-x" ou "x-" já diz o zoom; aí o modo forçado não se aplica
+  ir(t, /^-|-$|^\//.test(t) ? null : forcado || null);
+});
+$('#modos').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const t = inp.value.trim().replace(/^[-…]+|-+$/g, '');
+  const m = b.dataset.modo;
+  if (!t) { marcarModo(m === 'auto' ? null : m, null); inp.focus(); return; }
+  if (m === 'auto') ir(t, null);
+  else if (m === 'fim') ir('-' + t, null);
+  else if (m === 'inicio') ir(t + '-', null);
+  else ir(t, m);
+});
+$('#voltar').addEventListener('click', () => {
+  if (history.length > 1 && location.hash) history.back();
+  else location.hash = '';
+});
+
+/* ajustes */
+const folha = $('#folha'), veu = $('#veu');
+function abrirAjustes(on) { folha.classList.toggle('on', on); veu.classList.toggle('on', on); }
+$('#ajustes').addEventListener('click', () => { sincAjustes(); abrirAjustes(true); });
+veu.addEventListener('click', () => fecharAjustes());
+$('#fechar').addEventListener('click', () => fecharAjustes());
+let cfgAntes = '';
+function sincAjustes() {
+  cfgAntes = JSON.stringify(cfg);
+  $('#c-rima').value = cfg.pesoRima; $('#c-rima-v').textContent = cfg.pesoRima;
+  $('#c-rmudo').checked = cfg.rMudo;
+  document.querySelectorAll('#c-lente button').forEach(b => b.classList.toggle('at', b.dataset.v === cfg.lente));
+}
+$('#c-rima').addEventListener('input', e => { cfg.pesoRima = +e.target.value; $('#c-rima-v').textContent = cfg.pesoRima; });
+$('#c-rmudo').addEventListener('change', e => { cfg.rMudo = e.target.checked; });
+$('#c-lente').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { cfg.lente = b.dataset.v; sincAjustes(); cfgAntes = ''; } });
+function fecharAjustes() {
+  abrirAjustes(false);
+  if (JSON.stringify(cfg) !== cfgAntes) { salvarCfg(); aplicarCfg(); render(); }
+}
+
+render();
+</script>
+</body>
+</html>

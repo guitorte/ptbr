@@ -11,12 +11,13 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | File | Role |
 |------|------|
 | `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~2860 lines, self-contained) |
-| `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Currently loaded **only** by `exp/index.html` via `<script src="../phonetic-engine.js">` — the Node CLIs do *not* require it |
+| `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
 | `dic/palavras.txt` | 145,744 Portuguese words, one per line (1.5 MB) |
 | `dic/corpus-schemes.json` | 474 songs × deduplicated stanzas in compact `{a,t,g,s[]}` format (139 KB) |
 | `upload/letras_final.json` | 478 song lyrics with full text (`{artista, titulo, letra, genero, fonte}`) — lazy-loaded in-browser on first card click |
+| `som/` | **Som** — mobile-first "navegue semelhanças": one engine, four zoom levels (palavra `degustar`, fim `-bula` / início `ge-`, sílaba `ge`, som `t`). `engine.js` (G2P + weighted distances, dual-mode, testable in Node), `worker.js` (indexes `dic/palavras.txt` off the UI thread), `index.html` (UI). Loads `../phonetic-engine.js` |
 | `song-analysis.html` | Standalone page "Eco Sonoro" — phonetic analysis of a full lyric. **Carries its own inlined copy of the phonetic engine** |
 | `exp/v02.html` | Older standalone prototype ("Vocalis"), own inlined engine — historical, not wired to anything |
 | `exp/index.backup.html` | Pre-refactor snapshot of `exp/index.html` — historical |
@@ -53,11 +54,12 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `build-corpus.js` | corpus index build |
 | `rhyme-extract.js` | per-song CLI |
 | `song-analysis.html` | Eco Sonoro page |
+| `som/engine.js` | Som (`silabificar`, `identificarTonica` + helpers, verbatim) |
 
-Always patch all four, then rebuild the corpus. `exp/index.backup.html` and
+Always patch all four (five, counting `som/engine.js`), then rebuild the corpus. `exp/index.backup.html` and
 `exp/v02.html` hold two more stale copies — leave those alone, they are archives.
 
-Verify: `grep -n "function identificarTonica" -A 10 exp/index.html build-corpus.js rhyme-extract.js song-analysis.html`
+Verify: `grep -n "function identificarTonica" -A 10 exp/index.html build-corpus.js rhyme-extract.js song-analysis.html som/engine.js`
 
 ---
 

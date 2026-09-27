@@ -9,6 +9,7 @@ A browser-based tool for finding rhymes, near-rhymes, assonances, and rhythmic m
 ```bash
 python -m http.server 8000
 # then open http://localhost:8000/exp/index.html
+# or the mobile similarity navigator: http://localhost:8000/som/
 ```
 
 On Windows, double-click `start.bat`.
