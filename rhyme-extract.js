@@ -77,8 +77,10 @@ function silabificar(palavra) {
         let ch = palavra[i], chL = ch.toLowerCase();
         if ((chL==='q'||chL==='g') && palavra[i+1] && palavra[i+1].toLowerCase()==='u'
             && palavra[i+2] && vRegex.test(palavra[i+2])) {
+            // qu/gu entra no bloco consonantal em curso (an|qu, ar|gu); antes era
+            // empurrado à frente da consoante pendente e as letras saíam trocadas
             if (tipoAt==='V') { blocos.push({tipo:'V',texto:textoAt}); textoAt=''; }
-            blocos.push({tipo:'C',texto:ch+palavra[i+1]}); i++; tipoAt=''; continue;
+            textoAt += ch+palavra[i+1]; tipoAt='C'; i++; continue;
         }
         let tipo = vRegex.test(ch) ? 'V' : 'C';
         if (tipo !== tipoAt) { if (textoAt) blocos.push({tipo:tipoAt,texto:textoAt}); tipoAt=tipo; textoAt=ch; }
@@ -115,8 +117,11 @@ function identificarTonica(silabas, p) {
 }
 
 function extrairRima(sil, ti) {
-    let pf = sil.slice(ti).join(''), m = pf.match(vRegex);
-    return m ? pf.slice(m.index).toLowerCase() : pf.toLowerCase();
+    let pf = sil.slice(ti).join(''), k = pf.search(vRegex);
+    if (k < 0) return pf.toLowerCase();
+    // 'u' de qu/gu + vogal não é núcleo: al-GUÉM → ém, QUE-ro → ero
+    if (/[uü]/i.test(pf[k]) && k > 0 && /[qg]/i.test(pf[k-1]) && vRegex.test(pf[k+1] || '')) k++;
+    return pf.slice(k).toLowerCase();
 }
 
 /* ═══════════════════════════════════════════════════════════════

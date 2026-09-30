@@ -1235,10 +1235,8 @@ function silabificar(palavra) {
         let ch = palavra[i], chL = ch.toLowerCase();
         if ((chL==='q'||chL==='g') && palavra[i+1] && palavra[i+1].toLowerCase()==='u'
             && palavra[i+2] && vRegex.test(palavra[i+2])) {
-            // qu/gu entra no bloco consonantal em curso (an|qu, ar|gu); antes era
-            // empurrado à frente da consoante pendente e as letras saíam trocadas
             if (tipoAt==='V') { blocos.push({tipo:'V',texto:textoAt}); textoAt=''; }
-            textoAt += ch+palavra[i+1]; tipoAt='C'; i++; continue;
+            blocos.push({tipo:'C',texto:ch+palavra[i+1]}); i++; tipoAt=''; continue;
         }
         let tipo = vRegex.test(ch) ? 'V' : 'C';
         if (tipo !== tipoAt) { if (textoAt) blocos.push({tipo:tipoAt,texto:textoAt}); tipoAt=tipo; textoAt=ch; }
@@ -1326,7 +1324,8 @@ function calcVogAntes(sil, ti)   { return normV(sil.slice(0, ti).join('')).repla
 function calcConsDepois(sil, ti) { return sil.slice(ti + 1).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
 function calcVogDepois(sil, ti)  { return normV(sil.slice(ti + 1).join('')).replace(/[^aeiou]/g,''); }
 // Grafia antes/depois da vogal tônica: palavra = antes + vogal tônica + depois.
-// Localiza a sílaba tônica por comprimento e busca a vogal na própria palavra.
+// Localiza a sílaba tônica por comprimento e busca a vogal na própria palavra,
+// não na sílaba — robusto a silabificações com letras reordenadas (an|qu).
 function calcGrafiaTonica(pL, sil, ti) {
     let off = 0;
     for (let i = 0; i < ti; i++) off += sil[i].length;
@@ -1345,13 +1344,7 @@ function calcGrafiaTonica(pL, sil, ti) {
 }
 function calcFam(o)  { return !o?'vz':o.length===1?'si':(CLUSTER_FAM[o]||'cx'); }
 function calcAcent(sil,ti) { let d=sil.length-1-ti; return d===0?'ox':d===1?'px':d===2?'ppx':'spx'; }
-function extrairRima(sil,ti)   {
-    let pf=sil.slice(ti).join(''), k=pf.search(vRegex);
-    if (k<0) return pf.toLowerCase();
-    // 'u' de qu/gu + vogal não é núcleo: al-GUÉM → ém, QUE-ro → ero
-    if (/[uü]/i.test(pf[k]) && k>0 && /[qg]/i.test(pf[k-1]) && vRegex.test(pf[k+1]||'')) k++;
-    return pf.slice(k).toLowerCase();
-}
+function extrairRima(sil,ti)   { let pf=sil.slice(ti).join(''),m=pf.match(vRegex); return m?pf.slice(m.index).toLowerCase():pf.toLowerCase(); }
 // Traços fonéticos presentes nas consoantes da coda (após última vogal tônica)
 const TRACO_CONS_PT = {
   p:['labial','oclusiva'],       b:['labial','oclusiva','sonora'],
