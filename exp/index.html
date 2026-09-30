@@ -1300,17 +1300,25 @@ function ehFinalAmbiguo(silabas) {
 const CLUSTER_FAM = {
     br:'pl',cr:'pl',dr:'pl',fr:'fl',gr:'pl',pr:'pl',tr:'pl',vr:'fl',
     bl:'pl',cl:'pl',fl:'fl',gl:'pl',pl:'pl',tl:'pl',
-    ch:'af',lh:'lp',nh:'np'
+    ch:'af',lh:'lp',nh:'np',
+    qu:'si',gu:'si'   // um só som consonantal (/k/, /g/)
 };
 const ACENT_LABEL  = { ox:'Oxítona', px:'Paroxítona', ppx:'Proparoxítona', spx:'Superproparox.' };
 const FAM_LABEL    = { pl:'plos+líq', fl:'fric+líq', af:'ch', lp:'lh', np:'nh', si:'simples', vz:'—', cx:'complexo' };
 const CLASSE_LABEL = { sub:'Subst.', adj:'Adj.', vrb:'Verbo', adv:'Adv.', outro:'Outro' };
 const FREQ_LABEL   = { comum:'Comum', media:'Neutra', rara:'Rara' };
 
-function calcOnset(sil)        { let m=sil.match(/^([^aeiouáàâãéêíóôõúü]*)/i); return m?m[1].toLowerCase():''; }
-function calcVogalT(sil)       { let m=sil.match(/[aeiouáàâãéêíóôõúü]/i); return m?normV(m[0]):''; }
-function calcVogaisRima(sil,ti){ return normV(sil.slice(ti).join('')).replace(/[^aeiouãõ]/g,''); }
-function calcEspinha(p)        { return normV(p).replace(/[^aeiouãõ]/g,''); }
+// O 'u' de qu/gu + vogal é glide, não núcleo (QUE-ro, al-GUÉM, GUAR-da)
+function idxNucleo(sil) {
+    let k = sil.search(vRegex);
+    if (k > 0 && /[uü]/i.test(sil[k]) && /[qg]/i.test(sil[k-1]) && vRegex.test(sil[k+1] || '')) k++;
+    return k;
+}
+function semGlideQU(s)         { return s.replace(/([qg])[uü](?=[aeiouáàâãéêíóôõú])/gi, '$1'); }
+function calcOnset(sil)        { let k=idxNucleo(sil); return (k<0?sil:sil.slice(0,k)).toLowerCase(); }
+function calcVogalT(sil)       { let k=idxNucleo(sil); return k<0?'':normV(sil[k]); }
+function calcVogaisRima(sil,ti){ return normV(semGlideQU(sil.slice(ti).join(''))).replace(/[^aeiouãõ]/g,''); }
+function calcEspinha(p)        { return normV(semGlideQU(p)).replace(/[^aeiouãõ]/g,''); }
 function calcEspinhaConsonantal(p) { return p.toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
 function _normParaContem(s) {
     return s.toLowerCase()
@@ -1322,9 +1330,9 @@ function calcAssC(sil,ti) {
     return [...new Set(span)].sort().join('');
 }
 function calcConsAntes(sil, ti)  { return sil.slice(0, ti).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
-function calcVogAntes(sil, ti)   { return normV(sil.slice(0, ti).join('')).replace(/[^aeiou]/g,''); }
+function calcVogAntes(sil, ti)   { return normV(semGlideQU(sil.slice(0, ti).join(''))).replace(/[^aeiou]/g,''); }
 function calcConsDepois(sil, ti) { return sil.slice(ti + 1).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
-function calcVogDepois(sil, ti)  { return normV(sil.slice(ti + 1).join('')).replace(/[^aeiou]/g,''); }
+function calcVogDepois(sil, ti)  { return normV(semGlideQU(sil.slice(ti + 1).join(''))).replace(/[^aeiou]/g,''); }
 // Grafia antes/depois da vogal tônica: palavra = antes + vogal tônica + depois.
 // Localiza a sílaba tônica por comprimento e busca a vogal na própria palavra.
 function calcGrafiaTonica(pL, sil, ti) {
@@ -1345,13 +1353,7 @@ function calcGrafiaTonica(pL, sil, ti) {
 }
 function calcFam(o)  { return !o?'vz':o.length===1?'si':(CLUSTER_FAM[o]||'cx'); }
 function calcAcent(sil,ti) { let d=sil.length-1-ti; return d===0?'ox':d===1?'px':d===2?'ppx':'spx'; }
-function extrairRima(sil,ti)   {
-    let pf=sil.slice(ti).join(''), k=pf.search(vRegex);
-    if (k<0) return pf.toLowerCase();
-    // 'u' de qu/gu + vogal não é núcleo: al-GUÉM → ém, QUE-ro → ero
-    if (/[uü]/i.test(pf[k]) && k>0 && /[qg]/i.test(pf[k-1]) && vRegex.test(pf[k+1]||'')) k++;
-    return pf.slice(k).toLowerCase();
-}
+function extrairRima(sil,ti)   { let pf=sil.slice(ti).join(''), k=idxNucleo(pf); return (k<0?pf:pf.slice(k)).toLowerCase(); }
 // Traços fonéticos presentes nas consoantes da coda (após última vogal tônica)
 const TRACO_CONS_PT = {
   p:['labial','oclusiva'],       b:['labial','oclusiva','sonora'],

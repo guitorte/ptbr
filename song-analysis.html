@@ -446,26 +446,30 @@ function identificarTonica(silabas, p) {
     return Math.max(0,silabas.length-2);
 }
 
+// O 'u' de qu/gu + vogal é glide, não núcleo (QUE-ro, al-GUÉM, GUAR-da)
+function idxNucleo(sil) {
+    let k = sil.search(vRegex);
+    if (k > 0 && /[uü]/i.test(sil[k]) && /[qg]/i.test(sil[k-1]) && vRegex.test(sil[k+1] || '')) k++;
+    return k;
+}
+
 function calcOnset(sil) {
-    let m = sil.match(/^([^aeiouáàâãéêíóôõúü]*)/i);
-    return m ? m[1].toLowerCase() : '';
+    let k = idxNucleo(sil);
+    return (k < 0 ? sil : sil.slice(0, k)).toLowerCase();
 }
 
 function extrairRima(sil, ti) {
-    let pf = sil.slice(ti).join(''), k = pf.search(vRegex);
-    if (k < 0) return pf.toLowerCase();
-    // 'u' de qu/gu + vogal não é núcleo: al-GUÉM → ém, QUE-ro → ero
-    if (/[uü]/i.test(pf[k]) && k > 0 && /[qg]/i.test(pf[k-1]) && vRegex.test(pf[k+1] || '')) k++;
-    return pf.slice(k).toLowerCase();
+    let pf = sil.slice(ti).join(''), k = idxNucleo(pf);
+    return (k < 0 ? pf : pf.slice(k)).toLowerCase();
 }
 
 /* ═══════════════════════════════════════════════════════════════
    EXTRAÇÃO DO RIME (núcleo+coda) DE CADA SÍLABA
 ═══════════════════════════════════════════════════════════════ */
 function sylRime(syl) {
-    let m = syl.match(vRegex);
-    if (!m) return syl.toLowerCase();
-    return normV(syl.slice(m.index));
+    let k = idxNucleo(syl);
+    if (k < 0) return syl.toLowerCase();
+    return normV(syl.slice(k));
 }
 
 /* ═══════════════════════════════════════════════════════════════
