@@ -782,6 +782,23 @@ body {
       <p class="sb-hint">Palavras que terminam com estas letras. Vírgula = OU. Ex: "mo" → amo, próximo</p>
     </div>
     <div class="sb-section">
+      <span class="sb-label">Início exato (grafia)</span>
+      <input id="inicio-input" class="sb-input" type="text"
+             placeholder="tra, j, des…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+      <p class="sb-hint">Palavras que começam com estas letras. Vírgula = OU. Ex: "tra" → trabalho, tranquilo</p>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Letras ao redor da tônica (grafia)</span>
+      <div class="sb-around-row">
+        <input id="graf-antes-input" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="graf-depois-input" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <p class="sb-hint">Letras exatas antes / depois da vogal tônica. Vírgula = OU. Ex: antes "rr, nh" → arrumar, caminhar; depois "f" → bafo, grifo</p>
+    </div>
+    <div class="sb-section">
       <span class="sb-label">Onset tônico</span>
       <input id="onset-input" class="sb-input" type="text"
              placeholder="tr, pr, fl, s, r…"
@@ -1012,6 +1029,23 @@ body {
              placeholder="mo, ção, inho…"
              autocorrect="off" autocapitalize="none" spellcheck="false">
       <p class="sb-hint">Palavras que terminam com estas letras. Vírgula = OU. Ex: "mo" → amo, próximo</p>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Início exato (grafia)</span>
+      <input id="inicio-input-sh" class="sb-input" type="text"
+             placeholder="tra, j, des…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+      <p class="sb-hint">Palavras que começam com estas letras. Vírgula = OU. Ex: "tra" → trabalho, tranquilo</p>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Letras ao redor da tônica (grafia)</span>
+      <div class="sb-around-row">
+        <input id="graf-antes-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="graf-depois-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <p class="sb-hint">Letras exatas antes / depois da vogal tônica. Vírgula = OU. Ex: antes "rr, nh" → arrumar, caminhar; depois "f" → bafo, grifo</p>
     </div>
     <div class="sh-section">
       <span class="sh-label">Onset tônico</span>
@@ -1289,6 +1323,25 @@ function calcConsAntes(sil, ti)  { return sil.slice(0, ti).join('').toLowerCase(
 function calcVogAntes(sil, ti)   { return normV(sil.slice(0, ti).join('')).replace(/[^aeiou]/g,''); }
 function calcConsDepois(sil, ti) { return sil.slice(ti + 1).join('').toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,''); }
 function calcVogDepois(sil, ti)  { return normV(sil.slice(ti + 1).join('')).replace(/[^aeiou]/g,''); }
+// Grafia antes/depois da vogal tônica: palavra = antes + vogal tônica + depois.
+// Localiza a sílaba tônica por comprimento e busca a vogal na própria palavra,
+// não na sílaba — robusto a silabificações com letras reordenadas (an|qu).
+function calcGrafiaTonica(pL, sil, ti) {
+    let off = 0;
+    for (let i = 0; i < ti; i++) off += sil[i].length;
+    // Acento gráfico decide; senão, primeira vogal a partir do início da sílaba tônica
+    let k = sil[ti].search(/[áéíóúâêôãõ]/) >= 0 ? pL.slice(off).search(/[áéíóúâêôãõ]/) : -1;
+    if (k < 0) {
+        for (let j = off; j < pL.length; j++) {
+            if (!/[aeiouü]/.test(pL[j])) continue;
+            // 'u' de qu/gu seguido de vogal não é núcleo (quero, guerra, tranquilo)
+            if (/[uü]/.test(pL[j]) && /[qg]/.test(pL[j-1] || '') && /[aeiouáéíóâêô]/.test(pL[j+1] || '')) continue;
+            k = j - off; break;
+        }
+    }
+    if (k < 0) return { antes: pL, depois: '' };
+    return { antes: pL.slice(0, off + k), depois: pL.slice(off + k + 1) };
+}
 function calcFam(o)  { return !o?'vz':o.length===1?'si':(CLUSTER_FAM[o]||'cx'); }
 function calcAcent(sil,ti) { let d=sil.length-1-ti; return d===0?'ox':d===1?'px':d===2?'ppx':'spx'; }
 function extrairRima(sil,ti)   { let pf=sil.slice(ti).join(''),m=pf.match(vRegex); return m?pf.slice(m.index).toLowerCase():pf.toLowerCase(); }
@@ -1386,7 +1439,7 @@ function perfilFonetico(palavra) {
     let pL = palavra.toLowerCase().trim();
     if (!pL || !/[a-záàâãéêíóôõúü]/i.test(pL)) return null;
     let sil = silabificar(pL), ti = identificarTonica(sil, pL), onset = calcOnset(sil[ti]);
-    let numSil = sil.length;
+    let numSil = sil.length, graf = calcGrafiaTonica(pL, sil, ti);
     return {
         palavra: pL, silabas: sil, tonicaIndex: ti, numSilabas: numSil,
         acentuacao: calcAcent(sil, ti),
@@ -1401,6 +1454,8 @@ function perfilFonetico(palavra) {
         vogAntes:   calcVogAntes(sil, ti),
         consDepois: calcConsDepois(sil, ti),
         vogDepois:  calcVogDepois(sil, ti),
+        grafAntes:  graf.antes,
+        grafDepois: graf.depois,
         tracosCoda: calcTracosCoda(sil, ti),
         familiaCluster: calcFam(onset),
         coda: calcCoda(pL),
@@ -1498,6 +1553,7 @@ let FILTROS_CONTEM = {
     vogais: null, consoantes: null, tolerancia: 0,
     consAntes: null, vogAntes: null, consDepois: null, vogDepois: null,
     toleranciaAoRedor: 0, terminacao: null,
+    inicio: null, grafAntes: null, grafDepois: null,
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2033,6 +2089,11 @@ function processarBusca() {
         ? FILTROS_CONTEM.terminacao.split(',').map(t => t.trim()).filter(Boolean)
         : null;
     if (termList && !termList.length) termList = null;
+    // Início / grafia antes / depois da vogal tônica: letras exatas, vírgula = OU
+    const _lista = v => { let l = v ? v.split(',').map(t => t.trim()).filter(Boolean) : []; return l.length ? l : null; };
+    let inicioList = _lista(FILTROS_CONTEM.inicio);
+    let antesList  = _lista(FILTROS_CONTEM.grafAntes);
+    let depoisList = _lista(FILTROS_CONTEM.grafDepois);
     if (alvoB) base = base.filter(i => i.palavra !== alvoB.palavra);
     let filtrados = base.filter(item => {
         for (let [k, v] of Object.entries(FILTROS)) {
@@ -2058,6 +2119,9 @@ function processarBusca() {
             if (!_normParaContem(item.espinhaVocal).includes(q)) return false;
         }
         if (termList && !termList.some(t => item.palavra.endsWith(t))) return false;
+        if (inicioList && !inicioList.some(t => item.palavra.startsWith(t))) return false;
+        if (antesList  && !antesList.some(t => item.grafAntes.includes(t)))   return false;
+        if (depoisList && !depoisList.some(t => item.grafDepois.includes(t))) return false;
         if (FILTROS_CONTEM.consoantes) {
             let q = FILTROS_CONTEM.consoantes.toLowerCase().replace(/[aeiouáàâãéêíóôõúü]/g,'');
             if (FILTROS_CONTEM.tolerancia > 0) {
@@ -2474,10 +2538,10 @@ function stepTolAoRedor(delta) {
     _updateFabBadge();
 }
 
-let _arTimer;
+let _arTimers = {};
 function _onArInput(field, el) {
-    clearTimeout(_arTimer);
-    _arTimer = setTimeout(() => {
+    clearTimeout(_arTimers[field]);
+    _arTimers[field] = setTimeout(() => {
         let val = el.value.trim().toLowerCase();
         FILTROS_CONTEM[field] = val || null;
         // sync paired input (sb <-> sh)
@@ -2487,6 +2551,9 @@ function _onArInput(field, el) {
             'vogAntes':   ['vog-antes-input','vog-antes-input-sh'],
             'vogDepois':  ['vog-depois-input','vog-depois-input-sh'],
             'terminacao': ['term-input','term-input-sh'],
+            'inicio':     ['inicio-input','inicio-input-sh'],
+            'grafAntes':  ['graf-antes-input','graf-antes-input-sh'],
+            'grafDepois': ['graf-depois-input','graf-depois-input-sh'],
         };
         (pairs[field] || []).forEach(id => {
             let e = document.getElementById(id);
@@ -2578,11 +2645,13 @@ function resetFiltros() {
     FILTROS_CONTEM.consAntes = null; FILTROS_CONTEM.vogAntes = null;
     FILTROS_CONTEM.consDepois = null; FILTROS_CONTEM.vogDepois = null;
     FILTROS_CONTEM.toleranciaAoRedor = 0; FILTROS_CONTEM.terminacao = null;
+    FILTROS_CONTEM.inicio = null; FILTROS_CONTEM.grafAntes = null; FILTROS_CONTEM.grafDepois = null;
     buildSilMode = 'eq';
     ['vogais-input','vogais-input-sh','cons-input','cons-input-sh',
      'cons-antes-input','cons-antes-input-sh','cons-depois-input','cons-depois-input-sh',
      'vog-antes-input','vog-antes-input-sh','vog-depois-input','vog-depois-input-sh',
-     'term-input','term-input-sh'].forEach(id => {
+     'term-input','term-input-sh','inicio-input','inicio-input-sh',
+     'graf-antes-input','graf-antes-input-sh','graf-depois-input','graf-depois-input-sh'].forEach(id => {
         let el = document.getElementById(id); if (el) el.value = '';
     });
     ['tol-val-sb','tol-val-sh'].forEach(id => {
@@ -3054,6 +3123,12 @@ document.getElementById('vog-depois-input').addEventListener('input',    e => _o
 document.getElementById('vog-depois-input-sh').addEventListener('input', e => _onArInput('vogDepois',  e.target));
 document.getElementById('term-input').addEventListener('input',          e => _onArInput('terminacao', e.target));
 document.getElementById('term-input-sh').addEventListener('input',       e => _onArInput('terminacao', e.target));
+document.getElementById('inicio-input').addEventListener('input',        e => _onArInput('inicio',     e.target));
+document.getElementById('inicio-input-sh').addEventListener('input',     e => _onArInput('inicio',     e.target));
+document.getElementById('graf-antes-input').addEventListener('input',    e => _onArInput('grafAntes',  e.target));
+document.getElementById('graf-antes-input-sh').addEventListener('input', e => _onArInput('grafAntes',  e.target));
+document.getElementById('graf-depois-input').addEventListener('input',   e => _onArInput('grafDepois', e.target));
+document.getElementById('graf-depois-input-sh').addEventListener('input',e => _onArInput('grafDepois', e.target));
 
 // Lego pills — click + long press
 let _legoTimer = null, _legoLongFired = false;
