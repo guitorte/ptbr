@@ -46,12 +46,15 @@ function tratarHiatosVogais(blocoVoc, pLower) {
         let seguidoDeNh     = pLower.includes(par+"nh");
         let pos = pLower.indexOf(par);
         let seguidoDeNasal  = pos >= 0 && pLower[pos+2] === 'n' && pos+3 < pLower.length && !vRegex.test(pLower[pos+3]);
+        // hiato na fronteira de prefixo: pro-i-bir, co-i-bir, co-i-gual, co-ir-mão
+        let mPref = par === "oi" ? pLower.match(/^(pro|co)i(b|gual|rm)/) : null;
+        let ehHiatoPrefixo = !!mPref && pos === mPref[1].length - 1;
         let formaHiatoDit   = false;
         if (blocoVoc.length >= 3 && /^[aeo]$/.test(atual.slice(-1))) {
             let prox = blocoVoc[i+1] ? blocoVoc[i+1].toLowerCase() : "";
             if (/^(iu|ui)$/.test(char+prox)) formaHiatoDit = true;
         }
-        if (formamDitongo && !temHiatoAcent && !vogaisIdenticas && !ehHiatoFinal && !seguidoDeNh && !seguidoDeNasal && !formaHiatoDit)
+        if (formamDitongo && !temHiatoAcent && !vogaisIdenticas && !ehHiatoFinal && !seguidoDeNh && !seguidoDeNasal && !formaHiatoDit && !ehHiatoPrefixo)
             atual += char;
         else { resultado.push(atual); atual = char; }
     }
