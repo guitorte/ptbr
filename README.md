@@ -29,7 +29,8 @@ ptbr/
 ├── build-corpus.js             # CLI: processes letras_final.json → dic/corpus-schemes.json
 ├── rhyme-extract.js            # CLI: extracts rhyme schemes from individual songs
 ├── dic/
-│   ├── palavras.txt            # 145,744 Portuguese words, one per line (1.5 MB)
+│   ├── k-palavras.txt          # Common-word list — the app's default dictionary (31,113 words after cleaning)
+│   ├── palavras.txt            # Full dictionary, 145,744 words (exp/index.html?dic=completo, and som/)
 │   └── corpus-schemes.json     # 474 songs, 3,254 deduplicated stanzas, compact {a,t,g,s[]} (139 KB)
 ├── upload/
 │   └── letras_final.json       # 478 song lyrics with full text (MPB, Pagode, Sertanejo, Pop/Rock, Rap…)
@@ -53,7 +54,8 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 | **phonetic-engine.js** | Phonetic distance library | IPA consonant feature table (Chomsky & Halle 1968). Loaded in the browser by `exp/` and `som/`; the Node CLIs do **not** use it. |
 | **build-corpus.js** | Corpus builder CLI | Reads `upload/letras_final.json`, extracts rhyme schemes, deduplicates stanzas, outputs compact index to `dic/corpus-schemes.json` |
 | **rhyme-extract.js** | Song analyzer CLI | Extracts rhyme schemes from individual songs. Flags: `--genre`, `--artist`, `--song`, `--index`, `--output` |
-| **dic/palavras.txt** | Dictionary | 145,744 Portuguese words, one per line. Loaded once on app startup. |
+| **dic/k-palavras.txt** | Default dictionary | Common-word list. The app keeps only lowercase, letters-only entries (31,113 words), dropping punctuation, names and acronyms. |
+| **dic/palavras.txt** | Full dictionary | 145,744 Portuguese words. Used by `exp/` only with `?dic=completo`, and by `som/`. |
 | **dic/corpus-schemes.json** | Corpus index | 3,254 deduplicated stanzas from 474 songs in compact format: `{a: artist, t: title, g: genre, s: [...]}` |
 | **upload/letras_final.json** | Song lyrics database | 478 songs with full text. Lazy-loaded in-browser on first card click. |
 | **CLAUDE.md** | Dev documentation | Codebase map, key functions, state variables, active branch info. |
@@ -87,7 +89,7 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 |----------|------|-------------|
 | `alvoAtual` | Object or `null` | Phonetic profile of the currently searched word; `null` in filter-only mode |
 | `alvoB` | Object or `null` | Second word profile for intersection searches |
-| `dicionario` | Array | All phonetic profiles, loaded once at startup from `dic/palavras.txt` |
+| `dicionario` | Array | All phonetic profiles, loaded once at startup from `dic/k-palavras.txt` (or `palavras.txt` with `?dic=completo`) |
 | `resultadosFiltrados` | Array | Current filtered/scored result set |
 | `FILTROS` | Object | Locked filter values (exact match)—keys `numSilabas`, `acentuacao`, `vogalTonica`, `onsetTonico`, `familiaCluster`, `rimaPerfeita`, `vogaisRima`, `espinhaVocal`, `coda`, `classe`, `freq` |
 | `FILTROS_NEG` | Object | Same keys as `FILTROS`; `true` negates that filter |
@@ -105,7 +107,7 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 The selector under the search box switches between three ways of ranking the dictionary. All filters work in every mode.
 
 ### Rima (rhyme)
-Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the 145,744-word dictionary, all built around the stressed syllable.
+Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the 31,113-word common-word dictionary (add `?dic=completo` to the address for the full 145,744 words), all built around the stressed syllable.
 
 ### Consoantes (consonants, stress ignored)
 Compares only the word's consonant sounds: `metade` (m·t·d) → `método`, `metido`, `medida`. Similar sounds count as close (t/d, p/b). Typing only consonants searches that skeleton directly: `dt` → `dote`, `dito`. A second row of chips groups words with **exactly the same consonants in any order** (`mesmas m·t·d`) or with **one of them missing** (`sem m` → `tudo`, `dote`).
@@ -286,7 +288,8 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 
 - Syllabification is rule-based and may fail on loanwords, proper nouns, or unusual clusters.
 - Word class detection uses suffix heuristics — not morphological analysis.
-- The dictionary (`palavras.txt`) has no frequency data; frequency tiers are estimated from word length and suffix patterns.
+- Neither word list carries frequency counts. With the default base every word counts as common; with `?dic=completo`, words on the common-word list are "comum" and the rest are estimated from length and suffixes.
+- The default base comes from news text: it includes some typos and a few foreign words and brands.
 - Corpus stanza matching uses rimaPerfeita string equality — stanzas with identical rhyme arrays are deduplicated per song.
 - No support for European Portuguese phonology.
 
@@ -294,7 +297,7 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 
 ## Performance Notes
 
-- **Dictionary load:** 145,744 words, each fully analysed in memory on every page load (the text file itself may come from the browser's HTTP cache).
+- **Dictionary load:** 31,113 words (about 1 s, ~50 MB), each fully analysed in memory on every page load; the full 145,744-word dictionary takes about 2.6 s and ~160 MB.
 - **Corpus index:** 139 KB, loaded on first use of corpus mode.
 - **Lyrics lazy-loading:** full song text is fetched only when a corpus card is opened.
 - **Scoring:** every dictionary word is scored in memory per search, on the main thread — roughly 0.1–0.3 s per search in Consoantes/Vogais mode. (`som/` does its indexing in a Web Worker.)
