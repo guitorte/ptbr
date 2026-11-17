@@ -2,6 +2,8 @@
 
 A browser-based tool for finding rhymes, near-rhymes, assonances, and rhythmic matches in Brazilian Portuguese. It combines formal phonetics (IPA feature geometry), Portuguese-specific syllabification rules, and a multi-criteria scoring system to rank candidate words.
 
+Besides rhymes, it can search by **consonant skeleton** or by **vowel sequence** while ignoring stress altogether — `metade` → `método` (same consonants) or `debate` (same vowels).
+
 ---
 
 ## How to Run
@@ -20,21 +22,24 @@ On Windows, double-click `start.bat`.
 
 ```
 ptbr/
-├── exp/index.html              # Full application (JS + HTML + CSS, ~3100 lines, self-contained)
+├── exp/index.html              # Main application (JS + HTML + CSS, ~3700 lines, self-contained)
+├── som/                        # "Som": mobile similarity navigator (engine.js, worker.js, index.html)
+├── song-analysis.html          # "Eco Sonoro": phonetic analysis of a full lyric
 ├── phonetic-engine.js          # IPA consonant distance engine (Chomsky & Halle features)
 ├── build-corpus.js             # CLI: processes letras_final.json → dic/corpus-schemes.json
 ├── rhyme-extract.js            # CLI: extracts rhyme schemes from individual songs
 ├── dic/
-│   ├── palavras.txt            # ~320k Portuguese words, one per line
-│   └── corpus-schemes.json     # 474 songs × stanzas, compact {a,t,g,s[]} format (139 KB)
+│   ├── palavras.txt            # 145,744 Portuguese words, one per line (1.5 MB)
+│   └── corpus-schemes.json     # 474 songs, 3,254 deduplicated stanzas, compact {a,t,g,s[]} (139 KB)
 ├── upload/
-│   └── letras_final.json       # 478 song lyrics with full text (MPB, Pagode, Sertanejo)
+│   └── letras_final.json       # 478 song lyrics with full text (MPB, Pagode, Sertanejo, Pop/Rock, Rap…)
+├── backup/                     # Timestamped snapshots of exp/ taken before engine changes
 ├── README.md                   # This file
 ├── CLAUDE.md                   # Internal development documentation
 └── start.bat                   # Windows launcher (python -m http.server 8000)
 ```
 
-All application logic runs client-side. The dictionary and corpus index are fetched via HTTP and processed in-memory on first load. Full lyrics are lazy-loaded only when a corpus card is opened.
+All application logic runs client-side. The dictionary is fetched over HTTP and analysed in memory on every page load. The corpus index is loaded on first use of corpus mode, and full lyrics only when a corpus card is opened. Saved words (★) and words you add (+) are kept in the browser's `localStorage`.
 
 ---
 
@@ -42,12 +47,14 @@ All application logic runs client-side. The dictionary and corpus index are fetc
 
 | File | Purpose | Details |
 |------|---------|---------|
-| **exp/index.html** | Complete web application | Phonetic engine, scoring algorithm, UI, corpus search, lyrics panel. Self-contained—no external dependencies. |
-| **phonetic-engine.js** | Phonetic distance library | IPA consonant feature table (Chomsky & Halle 1968). Imported by Node CLIs; not used in browser. |
+| **exp/index.html** | Main web application | Phonetic engine, scoring, the three search modes, filters, corpus search, lyrics panel. Its only dependency is `../phonetic-engine.js`. |
+| **som/** | Similarity navigator | Mobile-first page with four zoom levels (word, ending/beginning, syllable, sound). Indexes the dictionary in a Web Worker. |
+| **song-analysis.html** | Eco Sonoro | Paste a lyric and get its phonetic analysis (rhymes, alliteration). Carries its own copy of the phonetic engine. |
+| **phonetic-engine.js** | Phonetic distance library | IPA consonant feature table (Chomsky & Halle 1968). Loaded in the browser by `exp/` and `som/`; the Node CLIs do **not** use it. |
 | **build-corpus.js** | Corpus builder CLI | Reads `upload/letras_final.json`, extracts rhyme schemes, deduplicates stanzas, outputs compact index to `dic/corpus-schemes.json` |
 | **rhyme-extract.js** | Song analyzer CLI | Extracts rhyme schemes from individual songs. Flags: `--genre`, `--artist`, `--song`, `--index`, `--output` |
-| **dic/palavras.txt** | Dictionary | ~320k Portuguese words, one per line. Loaded once on app startup. |
-| **dic/corpus-schemes.json** | Corpus index | Deduplicated stanzas from 474 songs in compact format: `{a: artist, t: title, g: genre, s: [{scheme, lyrics}]}` |
+| **dic/palavras.txt** | Dictionary | 145,744 Portuguese words, one per line. Loaded once on app startup. |
+| **dic/corpus-schemes.json** | Corpus index | 3,254 deduplicated stanzas from 474 songs in compact format: `{a: artist, t: title, g: genre, s: [...]}` |
 | **upload/letras_final.json** | Song lyrics database | 478 songs with full text. Lazy-loaded in-browser on first card click. |
 | **CLAUDE.md** | Dev documentation | Codebase map, key functions, state variables, active branch info. |
 
@@ -58,10 +65,13 @@ All application logic runs client-side. The dictionary and corpus index are fetc
 | Function | Input | Output | Purpose |
 |----------|-------|--------|---------|
 | `silabificar(word)` | Portuguese word | `[sílaba, ...]` | Splits word into syllables using Portuguese syllabification rules |
-| `identificarTonica(silabasList)` | Syllable array | Integer index | Finds which syllable carries primary stress |
-| `extrairRima(word)` | Portuguese word | String | Returns phonetic material from tonic vowel to end (e.g., `pastel` → `el`) |
+| `identificarTonica(silabas, palavra)` | Syllable array + word | Integer index | Finds which syllable carries primary stress |
+| `extrairRima(silabas, tonicaIndex)` | Syllable array + stress index | String | Returns material from the tonic vowel to the end (`pastel` → `el`); the `u` of `qu`/`gu` is skipped (`quero` → `ero`) |
 | `perfilFonetico(word)` | Portuguese word | Phonetic profile object | Analyzes word completely: syllables, stress, vowels, consonants, rhyme, onset, features |
-| `calcScore(profileA, profileB)` | Two profile objects | Number (0–300+) | Compares two phonetic profiles, returns multi-criteria score |
+| `calcScore(profileA, profileB)` | Two profile objects | Number (0–300+) | Rhyme mode: compares two phonetic profiles, returns multi-criteria score |
+| `calcScoreCons(profileA, profileB)` | Two profile objects | Number | Consonant mode: similarity of consonant skeletons, same bands |
+| `calcScoreVog(profileA, profileB)` | Two profile objects | Number | Vowel mode: similarity of vowel sequences, same bands |
+| `setModo(modo)` | `'rima'` / `'cons'` / `'vog'` | `void` | Switches the search mode (Rima · Consoantes · Vogais selector) |
 | `processarBusca()` | (from UI state) | `void` (updates DOM) | Main search: scores all dictionary words against `alvoAtual`, applies filters, renders results |
 | `renderCorpus(results)` | Array of stanzas | `void` | Renders ESQ mode corpus cards with rhyme schemes, titles, artists |
 | `buscarCorpus(perfil)` | Phonetic profile | Array of stanzas | Searches corpus index for stanzas matching the rhyme profile |
@@ -79,37 +89,41 @@ All application logic runs client-side. The dictionary and corpus index are fetc
 | `alvoB` | Object or `null` | Second word profile for intersection searches |
 | `dicionario` | Array | All phonetic profiles, loaded once at startup from `dic/palavras.txt` |
 | `resultadosFiltrados` | Array | Current filtered/scored result set |
-| `FILTROS` | Object | Locked filter values (exact match mode)—keys: `syllables`, `tonica`, `rhyme`, etc. |
-| `FILTROS_NEG` | Object | Negated filter flags—e.g., `exclude_oxítona: true` |
-| `FILTROS_CONTEM` | Object | Free-text filter values—e.g., `vogais: "aei"`, `onset: "pl"` |
-| `modoCorpus` | Boolean | `true` if ESQ corpus mode active; `false` for rhyme-finder |
+| `FILTROS` | Object | Locked filter values (exact match)—keys `numSilabas`, `acentuacao`, `vogalTonica`, `onsetTonico`, `familiaCluster`, `rimaPerfeita`, `vogaisRima`, `espinhaVocal`, `coda`, `classe`, `freq` |
+| `FILTROS_NEG` | Object | Same keys as `FILTROS`; `true` negates that filter |
+| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants in any order (`consLivre`), onset, endings, beginnings… |
+| `modoBusca` | String | `'rima'`, `'cons'` or `'vog'`: which engine ranks the results |
+| `modoCorpus` | Boolean | `true` if ESQ corpus mode is active |
 | `corpusEsquemas` | Array or `null` | Loaded corpus index; `null` until first ESQ search |
-| `letrasDict` | Map | Lazily-built map of `"artista§titulo"` → full song object |
+| `letrasDict` | Map | Lazily-built map of `"artista§titulo"` → lyric text |
 | `corpusScrollY` | Number | Saved scroll position in `#corpus-viewport` for back-navigation |
 
 ---
 
 ## Features
 
-### Rhyme Finder
-Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the ~320k word dictionary.
+The selector under the search box switches between three ways of ranking the dictionary. All filters work in every mode.
 
-### Filters (filter-only mode)
-Search the dictionary without an anchor word using any combination of:
-- Syllable count (equal / less / greater)
-- Accentuation class (oxítona / paroxítona / proparoxítona)
-- Tonic vowel
-- Rhyme ending (rimaPerfeita) — type directly, e.g. `el`, `ão`, `or`
-- Onset of tonic syllable (with fuzzy phonetic tolerance)
-- Vowel pattern, vowel spine, coda consonants
-- Word class (noun, adjective, verb, adverb — via suffix heuristics)
-- Frequency tier (comum / média / rara)
+### Rima (rhyme)
+Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the 145,744-word dictionary, all built around the stressed syllable.
 
-### ESQ Mode — Corpus Catalog
-Click **ESQ** to search the corpus of 474 real song lyrics for stanzas that match the rhyme profile of the typed word. Results show the rhyme scheme of each matching stanza alongside song metadata (title, artist, genre).
+### Consoantes (consonants, stress ignored)
+Compares only the word's consonant sounds: `metade` (m·t·d) → `método`, `metido`, `medida`. Similar sounds count as close (t/d, p/b). Typing only consonants searches that skeleton directly: `dt` → `dote`, `dito`. A second row of chips groups words with **exactly the same consonants in any order** (`mesmas m·t·d`) or with **one of them missing** (`sem m` → `tudo`, `dote`).
 
-### Lyrics Detail View
-Click any ESQ result card to open the full song lyrics. The matching stanza is highlighted in green and scrolled into view. Press **← Voltar** to return to the exact corpus scroll position.
+### Vogais (vowels, stress ignored)
+Compares only the vowel sounds: `metade` (e·a·e) → `debate`, `beldade`, then nasal variants (`embate`). Typing only vowels searches the pattern directly: `eae`, `oao`. Diphthongs and nasal vowels count (`peito` → eⁱ·o, `gente` → ẽ·e). Same chip row: `mesmas e·a·e`, `sem e`, `sem a`. Open and closed e/o (é/ê, ó/ô) are not told apart.
+
+### Other tools
+- **∩** — intersection: words that match two anchor words at once
+- **⏱** — search history
+- **SÍL** — show/hide syllable separation on the cards
+- **+** — add a word missing from the dictionary (saved in the browser)
+- **★** — saved words
+
+### ESQ Mode — Corpus Catalog (currently hidden)
+Searches the corpus of 474 real song lyrics for stanzas that match the rhyme profile of the typed word, showing each stanza's rhyme scheme with title, artist and genre. Clicking a card opens the full lyric with the matching stanza highlighted; **← Voltar** returns to the same scroll position.
+
+The code is still in `exp/index.html`, but its top-bar button (`btn-corpus`) was removed in June 2026 to declutter the bar, so the mode currently has no entry point in the interface.
 
 ---
 
@@ -124,14 +138,18 @@ Each candidate word receives a numeric score against the input word. The score i
 | `rimaPerfeita` near (liquid/nasal) | +74 | Single difference, cost < 0.20 (r/l, m/n) |
 | `rimaPerfeita` near (similar) | +58 | Single difference, cost < 0.35 |
 | `rimaPerfeita` near (distant) | +40 | Single difference, cost ≥ 0.35 |
+| `rimaPerfeita` two differences | +10 to +40 | Same length, two differences, rhyme of 3+ letters; less the more distant the sounds |
+| `rimaPerfeita` different length | +65 / +40 | Edit distance 1 / 2 (the latter only for rhymes of 3+ letters) |
 | `vogaisRima` match | +60 | Same vowels in rhyming portion (normalized) |
 | `onsetTonico` full match | +20 | Identical onset of tonic syllable |
 | `onsetTonico` partial match | +10 | At least one shared consonant in onset |
 | `familiaCluster` match | +20 | Same cluster family (pl, fl, af…) — complex onsets only |
 | `assConsonantal` match | +30 | Jaccard ≥ 0.5 on post-tonic consonants |
-| `espinhaVocal` match | +20 | Full vowel sequence of the word matches |
+| `espinhaVocal` match | +20 | Full vowel sequence of the word matches (words with 2+ vowels) |
 | `vogalTonica` match | +15 | Same tonic vowel |
 | syllable count + stress | +10 | Same number of syllables and accentuation class |
+
+These weights apply to Rima mode. Consoantes and Vogais use their own similarity scores (see `CLAUDE.md`) mapped onto the same bands, with relabelled chips: Iguais / Quase / Próximas / Parciais / Distantes / Vagas.
 
 ### Score Bands
 
@@ -154,12 +172,12 @@ Rhyme quality (the tonic vowel + everything after it) is the primary criterion. 
 
 ### Tonic Syllable
 
-The syllable carrying primary stress. Identified by:
-1. Explicit accent marks (á, é, í, ó, ú, ã, õ)
-2. Stress rules for unaccented words:
-   - Final stress (oxítona) if word ends in r, l, z, x, i(s), u(s), im, ins, um, uns
-   - Penultimate stress (paroxítona) otherwise (most common in Portuguese)
-   - Explicit accent required for antepenultimate (proparoxítona)
+The syllable carrying primary stress. Identified by, in order:
+1. An acute or circumflex accent (á, é, í, ó, ú, â, ê, ô)
+2. A nasal tilde (ã, õ)
+3. Final stress (oxítona) if the word ends in r, l, z, x, i(s), u(s), im, ins, om, ons, um, uns
+4. Penultimate stress (paroxítona) otherwise — the most common case in Portuguese
+5. Antepenultimate stress (proparoxítona) only ever comes from a written accent
 
 ### Accentuation Classes
 
@@ -181,15 +199,18 @@ Consonant similarity uses IPA distinctive features (Chomsky & Halle 1968, Clemen
 
 ## Filters
 
-The interface exposes filters for:
-- Syllable count (with range modes: equal / less / greater)
-- Accentuation class
+Filters work on their own (no anchor word) or on top of any search mode:
+- Syllable count (equal / less / greater)
+- Accentuation class (oxítona / paroxítona / proparoxítona)
 - Tonic vowel
-- Onset of tonic syllable (with fuzzy phonetic tolerance)
-- Rhyme, vowel pattern, vowel spine
+- Rhyme ending (`rimaPerfeita`) — type it directly, e.g. `el`, `ão`, `or`
+- Exact ending and exact beginning (spelling), and letters before/after the tonic vowel
+- Onset of the tonic syllable (with phonetic tolerance)
+- Vowel pattern, vowel spine
+- Consonant sequence (in order) and **consonants in any order** (`td` → dote, tudo, data; with its own tolerance: exact / voicing / liquids & nasals)
 - Coda consonants (with phonetic feature filters)
-- Word class (noun, adjective, verb, adverb — detected via suffix heuristics)
-- Frequency tier (comum / media / rara)
+- Word class (noun, adjective, verb, adverb — suffix heuristics)
+- Frequency tier (comum / média / rara — estimated from length and suffixes)
 
 ---
 
@@ -217,9 +238,11 @@ node rhyme-extract.js --index 42
 
 ## Development
 
-### Active Development Branch
+### Branches
 
-All development happens on branch `claude/repo-overview-ZsAGc`. Always commit and push to this branch—never push to `main` without explicit instruction.
+Work happens on a short-lived branch per change, merged into `main` through a pull request. Never push to `main` directly without explicit instruction.
+
+> ⚠️ The phonetic engine (`silabificar`, `identificarTonica`, `extrairRima`…) is **copy-pasted** into `exp/index.html`, `build-corpus.js`, `rhyme-extract.js`, `song-analysis.html` and `som/engine.js`. A fix to one is a fix to none — see `CLAUDE.md` before touching it.
 
 ### Workflow
 
@@ -240,15 +263,15 @@ All development happens on branch `claude/repo-overview-ZsAGc`. Always commit an
 
 4. **Test** by interacting with the app in your browser:
    - Type words to test rhyme finding
+   - Switch between Rima, Consoantes and Vogais
    - Use filters to verify scoring logic
-   - Click **ESQ** to test corpus search
-   - Click corpus cards to verify lyrics loading
 
-5. **Commit and push** to the development branch:
+5. **Commit and push** to a branch of your own, then open a pull request:
    ```bash
+   git checkout -b my-change
    git add .
    git commit -m "Brief, descriptive message"
-   git push -u origin claude/repo-overview-ZsAGc
+   git push -u origin my-change
    ```
 
 ### Testing the Scoring System
@@ -271,22 +294,21 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 
 ## Performance Notes
 
-- **Dictionary load:** ~320k words × full phonetic analysis = ~2–3 seconds on first load. Cached in browser after.
-- **Corpus index:** 474 songs, deduplicated stanzas = 139 KB. Loaded on first ESQ search.
-- **Lyrics lazy-loading:** Full song text only fetched when a corpus card is clicked. Reduces initial payload.
-- **Scoring:** All dictionary words scored in-memory per search. Multi-threaded in future versions.
+- **Dictionary load:** 145,744 words, each fully analysed in memory on every page load (the text file itself may come from the browser's HTTP cache).
+- **Corpus index:** 139 KB, loaded on first use of corpus mode.
+- **Lyrics lazy-loading:** full song text is fetched only when a corpus card is opened.
+- **Scoring:** every dictionary word is scored in memory per search, on the main thread — roughly 0.1–0.3 s per search in Consoantes/Vogais mode. (`som/` does its indexing in a Web Worker.)
 
 ---
 
 ## Backup & Snapshots
 
-- Backup snapshot: `backup/corpus-v1` — earlier corpus state if needed for rollback.
-- Always tag releases or stable points before major refactors.
+- `backup/exp-<timestamp>/` — snapshots of `exp/` taken before risky engine changes, each with a README naming the source commit and how to restore it.
+- Branch `backup/corpus-v1` — an earlier state of the corpus, kept as a restore point.
 
 ---
 
 ## Related Resources
 
 - **IPA Feature Geometry:** Chomsky & Halle (1968), *The Sound Pattern of English*
-- **Portuguese Phonology:** Câmara Jr. (1970), *The Portuguese Language*
-- **Syllabification Rules:** Crawley et al. (2002) on Romance language phonotactics
+- **Portuguese Phonology:** Câmara Jr. (1970), *Estrutura da Língua Portuguesa*

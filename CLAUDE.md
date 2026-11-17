@@ -2,7 +2,9 @@
 
 ## What this project is
 
-A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranked rhymes, near-rhymes, and assonances. A secondary **ESQ mode** searches a corpus of 474 real song lyrics for stanzas sharing the same rhyme profile, and clicking a result opens the full song with the matching stanza highlighted.
+A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranked rhymes, near-rhymes, and assonances — or, in the stress-free **Consoantes** and **Vogais** modes, words with similar consonant or vowel skeletons. A secondary **ESQ mode** searches a corpus of 474 real song lyrics for stanzas sharing the same rhyme profile, and clicking a result opens the full song with the matching stanza highlighted.
+
+> **ESQ mode has no entry point in the UI.** Its button (`btn-corpus`) was removed in commit `550fc85` (2026-06-28) to declutter the top bar; the code and its listeners are still there, null-guarded. Restoring it means adding the button back — don't assume users can reach it today.
 
 ---
 
@@ -10,7 +12,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 
 | File | Role |
 |------|------|
-| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3680 lines, self-contained) |
+| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3690 lines, self-contained) |
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
@@ -22,6 +24,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `exp/v02.html` | Older standalone prototype ("Vocalis"), own inlined engine — historical, not wired to anything |
 | `exp/index.backup.html` | Pre-refactor snapshot of `exp/index.html` — historical |
 | `backup/` | Timestamped snapshots of `exp/` taken before risky engine changes |
+| `dic/lexico.txt`, `dic/k-palavras.txt`, `letras/001.txt`, `upload/001` | **Not used by anything.** `lexico.txt` is a byte-identical copy of `palavras.txt`; `k-palavras.txt` is a 51,864-line word list; the other two are 1-byte placeholder files |
 
 ---
 
@@ -92,7 +95,7 @@ then neighbours. Typing only vowels searches the pattern itself (`eae`, `oao`).
 
 ---
 
-## ⚠️ The phonetic engine is duplicated in 4 places
+## ⚠️ The phonetic engine is duplicated in 5 places
 
 `silabificar`, `identificarTonica`, `extrairRima` and the helpers around them are
 **copy-pasted**, not shared. A fix to one is a fix to none:
@@ -105,10 +108,14 @@ then neighbours. Typing only vowels searches the pattern itself (`eae`, `oao`).
 | `song-analysis.html` | Eco Sonoro page |
 | `som/engine.js` | Som (`silabificar`, `identificarTonica` + helpers, verbatim) |
 
-Always patch all four (five, counting `som/engine.js`), then rebuild the corpus. `exp/index.backup.html` and
+Always patch all five, then rebuild the corpus. `exp/index.backup.html` and
 `exp/v02.html` hold two more stale copies — leave those alone, they are archives.
 
 Verify: `grep -n "function identificarTonica" -A 10 exp/index.html build-corpus.js rhyme-extract.js song-analysis.html som/engine.js`
+
+`idxNucleo`/`semGlideQU` (the qu/gu fix for vowel fields) exist only in `exp/index.html` and
+`song-analysis.html`. The CLIs only compute rhymes, whose `extrairRima` already skips the
+glide `u`, so the corpus is unaffected; `som/engine.js` handles qu/gu in its own G2P.
 
 ---
 
@@ -153,6 +160,7 @@ Known gaps, deliberately left alone:
 | ≥ 10  | Ritmo |
 
 Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `espinhaVocal` = +20. Rhyme quality always outranks structural coincidence.
+These bands and weights are Rima mode only; CONS and VOG map their own similarity onto the same thresholds (see their sections).
 
 ---
 
@@ -178,11 +186,9 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 
 ## Development branch
 
-Active branch: `claude/recupera-commits-orfaos`
-
-Always push to the active branch. Never push to main without explicit instruction.
-Confirm the branch actually exists before trusting this line — it goes stale after
-every merge (`git branch -a`).
+No standing development branch: each change gets its own short-lived branch, merged into
+`main` through a pull request. Never push to main without explicit instruction.
+`backup/corpus-v1` is a deliberate restore point — don't delete it.
 
 Snapshots of `exp/` live in `backup/exp-<timestamp>/`, each with a README naming
 the commit it was taken from. Take one before touching the phonetic engine.
