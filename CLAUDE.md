@@ -10,7 +10,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 
 | File | Role |
 |------|------|
-| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3570 lines, self-contained) |
+| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3680 lines, self-contained) |
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
@@ -42,9 +42,11 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `toggleCorpusMode()` | Switches between rhyme-finder and ESQ corpus views |
 | `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, l, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), base letter of each consonant (`casa` → s `z` / l `s`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
 | `consQualquerOrdem(W, Q, tol)` | Filter *Consoantes em qualquer ordem* (`FILTROS_CONTEM.consLivre` / `toleranciaLivre`): every consonant of `Q` needs its own partner in `W` (bipartite matching, so `tt` needs two t's), any order/position. A pair matches by sound **or** letter (`s` → casa, cidade; `g` → gato, gente). Tol 1 = voicing pairs, tol 2 = + m/n, nh/n, liquids (r/l, lh/l) |
-| `consCategoria(W, A)` | CONS-mode consonant category for the second chip row (`#cat-grid`, filter `FILTRO_CAT`, result field `catCons`): `'mesmas'` = exactly the anchor's consonants in any order (`metade` → método, ditame); a symbol `X` = exactly the anchor's minus `X` ("sem m" → tudo, dote, adote). Strict: no leftover consonant, not even a coda nasal, so substitutions (`batido`, `entada`) stay in the bands. Category words bypass `CONS_PISO` |
+| `consCategoria(W, A)` | Skeleton category (works on `esq` and `esqV` alike); in CONS mode: consonant category for the second chip row (`#cat-grid`, filter `FILTRO_CAT`, result field `catCons`): `'mesmas'` = exactly the anchor's consonants in any order (`metade` → método, ditame); a symbol `X` = exactly the anchor's minus `X` ("sem m" → tudo, dote, adote). Strict: no leftover consonant, not even a coda nasal, so substitutions (`batido`, `entada`) stay in the bands. Category words bypass `CONS_PISO` |
 | `calcScoreCons(item, alvo)` | CONS-mode score: weighted edit distance between skeletons (`distEsq`/`simEsq`, substitution cost from `phonetic-engine.js`, edge gaps ×0.6), mapped onto the same 160/130/100/60 bands; vowel sequence is only a ≤15-pt tiebreak |
-| `toggleModoConsoantes()` | Topbar **CONS** button — swaps rhyme scoring for skeleton scoring. Ignores stress entirely; all filters still apply |
+| `calcEsqVogal(silabas)` | Vowel skeleton, same shape as `calcEsqueleto` (`{s, l, g, gs, leg}`): one symbol per vowel sound — `a e i o u`, nasals `ã ẽ ĩ õ ũ` (tilde or coda m/n: `gente` → `ẽ·e`), diphthong glides `ɪ ʊ` with a cheaper gap (`peito` → `eⁱ·o`, `mão` → `ãᵘ`, `quase` → `ᵘa·e`); silent `u` of que/gui dropped; é = ê = e. Uses the syllable split only to tell diphthong from hiatus — stress is not consulted. Stored as `esqV` on every profile |
+| `calcScoreVog(item, alvo)` | VOG-mode score: `simEsq` over `esqV` with `_vogSub` costs (e~i, o~u 0.3; a~e 0.5; e~o 0.6; a~i 0.8; nasality +0.15), baseline `VOG_BASE_SIM` 0.45, same bands. Consonant-skeleton similarity adds at most +9 (ordering only) |
+| `setModo('rima'｜'cons'｜'vog')` | Three-way selector under the search box (`#modo-seg`, state `modoBusca`). `cons`/`vog` swap rhyme scoring for skeleton scoring and ignore stress entirely; all filters still apply. `_esqK()` returns which skeleton field (`esq`/`esqV`) the current mode compares |
 
 ---
 
@@ -57,8 +59,9 @@ searches by skeleton directly (`dt` → `dote`, `dito`, `dieta`).
 - Lives only in `exp/index.html`; it does **not** touch `silabificar` /
   `identificarTonica`, so there is nothing to sync with the other engine copies
   and no corpus rebuild.
-- Bands are relabelled (Mesmo esqueleto / Quase igual / Próximo / Parcial);
-  results below 60 are dropped (`CONS_PISO`).
+- Bands are relabelled (Iguais / Quase / Próximas / Parciais — short on purpose,
+  three chips must fit a phone row); results below 60 are dropped (`CONS_PISO`)
+  unless they belong to a category, which keeps them as Distantes / Vagas.
 - Second chip row answers "where is `adote` when I type `metade`?": **mesmas
   m·t·d · sem m · sem t · sem d**. Band row and category row combine (AND) and
   each row's counts already reflect the other's selection. Hidden for A∩B and
@@ -67,6 +70,24 @@ searches by skeleton directly (`dt` → `dote`, `dito`, `dieta`).
 - Calibration: from `metade`, ~43 words share the exact skeleton, ~13k pass the
   floor. Two-consonant partials (`adoto`, `tudo`) land in *Parcial* — real
   3-consonant neighbours (`abatido` b·t·d) are genuinely closer.
+
+---
+
+## VOG mode (só vogais, sem tônica)
+
+The mirror image of CONS: compares only the vowel-sound sequence. `metade`
+(e·a·e) → mênade, desate, beldade, debate; then nasal variants (embate ẽ·a·e),
+then neighbours. Typing only vowels searches the pattern itself (`eae`, `oao`).
+
+- Same machinery as CONS (`distEsq`/`simEsq` take the substitution-cost function
+  as a parameter; `consCategoria` and the category chip row are shared):
+  **mesmas e·a·e · sem e · sem a**.
+- Like CONS, lives only in `exp/index.html` and changes nothing in
+  `silabificar`/`identificarTonica` — no other engine copy to sync, no corpus rebuild.
+- Known limit: open vs closed e/o (é/ê, ó/ô) are not distinguished, because
+  unaccented spelling doesn't say which one a vowel is.
+- Calibration: from `metade`, 169 words share the exact sequence, ~13k pass the floor.
+- Hash: `#molde=metade&modo=vog`.
 
 ---
 
@@ -145,6 +166,8 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 | `FILTROS` | Object of locked filter values (exact match) |
 | `FILTROS_NEG` | Negated filter flags |
 | `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields) |
+| `modoBusca` | `'rima'` \| `'cons'` \| `'vog'` — which engine ranks the results |
+| `FILTRO_CAT` | Selected category chips in CONS/VOG mode (`'mesmas'` and/or missing-sound symbols) |
 | `modoCorpus` | Boolean: ESQ mode active |
 | `corpusEsquemas` | Loaded corpus index (`null` until first ESQ use) |
 | `letrasDict` | `Map<"artista§titulo", letra>` — built lazily on first card click |
@@ -154,7 +177,7 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 
 ## Development branch
 
-Active branch: `claude/consoantes-qualquer-ordem`
+Active branch: `claude/modo-vogais`
 
 Always push to the active branch. Never push to main without explicit instruction.
 Confirm the branch actually exists before trusting this line — it goes stale after
