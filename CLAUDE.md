@@ -24,7 +24,8 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `exp/v02.html` | Older standalone prototype ("Vocalis"), own inlined engine — historical, not wired to anything |
 | `exp/index.backup.html` | Pre-refactor snapshot of `exp/index.html` — historical |
 | `backup/` | Timestamped snapshots of `exp/` taken before risky engine changes |
-| `dic/lexico.txt`, `dic/k-palavras.txt`, `letras/001.txt`, `upload/001` | **Not used by anything.** `lexico.txt` is a byte-identical copy of `palavras.txt`; `k-palavras.txt` is a 51,864-line word list; the other two are 1-byte placeholder files |
+| `dic/k-palavras.txt` | Common-word list (~52k forms, inflections and proper names included) — loaded by `exp/index.html` as `PALAVRAS_COMUNS` for the frequency filter and result order. See *User input & result order* |
+| `dic/lexico.txt`, `letras/001.txt`, `upload/001` | **Not used by anything.** `lexico.txt` is a byte-identical copy of `palavras.txt`; the other two are 1-byte placeholder files |
 
 ---
 
@@ -143,6 +144,29 @@ Known gaps, deliberately left alone:
 - **Accented diphthongs** — `tratarHiatosVogais` tests `/^(ai|au|ei|eu|iu|oi|ou|ui|ão|õe|ãe)$/`
   without the accented variants, so `troféu` splits as `tro-FÉ-u` (3 syllables
   instead of 2). Stress lands correctly; only the syllable count is wrong.
+
+---
+
+## User input & result order
+
+- **Every word the user supplies goes through `palavraValida(raw)`** — search box,
+  `#molde=`/`alvoB=` links, history. Only letters (accented, `ç`), hyphen and
+  apostrophe pass (`ENTRADA_OK`). Anything else sets `entradaInvalida`, clears the
+  anchor and shows a message instead of results (before: the old word's results
+  stayed on screen, and raw HTML from the box or a link reached `innerHTML`).
+- Lyric words in the lyrics panel deliberately **skip** `palavraValida` and go
+  straight to `perfilFonetico`, exactly like `build-corpus.js`, so stanzas keep
+  matching the pre-built corpus.
+- Output that reaches `innerHTML` (card syllables, rhyme tags, filter pills,
+  history, corpus cards) is escaped with `_escHtml` as a second line of defence.
+- **`dic/k-palavras.txt` is the common-word list** (`PALAVRAS_COMUNS`, ~46k
+  lowercase forms, ~14k match the dictionary). Loaded in parallel with
+  `palavras.txt`; if it fails, `calcFreq` falls back to the old length heuristic.
+  It drives the *Frequência* filter (`freq === 'comum'`) and the result order.
+- **Result order** (`_ordemResultado`): band → (Rima mode) perfect rhyme
+  `rimaExata` before near-rhymes of the same band → common before rare → score.
+  CONS/VOG then break ties by length closeness. Without the `rimaExata` step,
+  common near-rhymes jumped above perfect ones (`terra` → `era` before `berra`).
 
 ---
 

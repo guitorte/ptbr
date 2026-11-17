@@ -1442,10 +1442,20 @@ function calcCoda(p) {
     }
     return '';
 }
+/* Palavras comuns: dic/k-palavras.txt, uma lista de ~52 mil formas de uso
+   corrente (com flexões e nomes próprios; ~12,7 mil coincidem com o
+   dicionário). Serve ao filtro de frequência e para pôr palavras conhecidas
+   antes das raras dentro de cada faixa. Se a lista não carregar, cai na
+   heurística antiga de comprimento. */
+let PALAVRAS_COMUNS = new Set();
 function calcFreq(p, numSil) {
     let len = p.length;
-    if (len <= 4) return 'comum';
-    if (numSil <= 2 && len <= 6) return 'comum';
+    if (PALAVRAS_COMUNS.size) {
+        if (PALAVRAS_COMUNS.has(p)) return 'comum';
+    } else {
+        if (len <= 4) return 'comum';
+        if (numSil <= 2 && len <= 6) return 'comum';
+    }
     if (len >= 12 || numSil >= 6) return 'rara';
     if (/(?:ismo|fobia|filia|grafia|logia|metria|nomia|scopia|cracia|genia|terapia)$/i.test(p)) return 'rara';
     if (/^(?:pseudo|proto|infra|ultra|supra|hiper|macro|micro)/.test(p) && len > 9) return 'rara';
@@ -1989,13 +1999,13 @@ function renderCorpus(results) {
         let linesHtml = r.stanza.map(rima => {
             let sc = rimaScoreCorpus(rima, rimaAlvo);
             let cls = sc === 3 ? 'cr-exact' : sc >= 2 ? 'cr-near' : '';
-            return `<div class="cr-line ${cls}">-${rima}</div>`;
+            return `<div class="cr-line ${cls}">-${_escHtml(rima)}</div>`;
         }).join('');
         card.innerHTML =
             `<div class="cr-meta">
-               <span class="cr-titulo">${r.t}</span>
-               <span class="cr-artista">${r.a}</span>
-               <span class="cr-genero">${r.g}</span>
+               <span class="cr-titulo">${_escHtml(r.t || '')}</span>
+               <span class="cr-artista">${_escHtml(r.a || '')}</span>
+               <span class="cr-genero">${_escHtml(r.g || '')}</span>
              </div>
              <div class="cr-stanza">${linesHtml}</div>`;
         card.style.cursor = 'pointer';
@@ -2339,7 +2349,7 @@ function _renderFavGrid() {
             let sils = perfil.silabas;
             let sepFinal = ehFinalAmbiguo(sils) ? ':' : '·';
             sylHtml = sils.map((s, i) => {
-                let part = i === perfil.tonicaIndex ? `<span class="tonica">${s}</span>` : s;
+                let part = i === perfil.tonicaIndex ? `<span class="tonica">${_escHtml(s)}</span>` : _escHtml(s);
                 if (i < sils.length - 1) {
                     let sep = (i === sils.length - 2 && sepFinal === ':') ? ':' : '·';
                     return part + sep;
@@ -2348,10 +2358,10 @@ function _renderFavGrid() {
             }).join('');
         } else if (perfil) {
             sylHtml = perfil.silabas.map((s, i) =>
-                i === perfil.tonicaIndex ? `<span class="tonica">${s}</span>` : s
+                i === perfil.tonicaIndex ? `<span class="tonica">${_escHtml(s)}</span>` : _escHtml(s)
             ).join('');
         } else {
-            sylHtml = palavra;
+            sylHtml = _escHtml(palavra);
         }
         card.innerHTML = `<span>${sylHtml}</span>`;
         _addLongPress(card, () => { toggleFavorito(palavra); _renderFavGrid(); });
@@ -2399,8 +2409,14 @@ async function indexarDicionario() {
     let st = document.getElementById('status-text');
     st.textContent = 'Baixando palavras.txt…';
     try {
+        // Lista de palavras comuns em paralelo; falhar aqui não impede o app
+        const comuns = fetch('../dic/k-palavras.txt')
+            .then(r => r.ok ? r.text() : '')
+            .catch(() => '');
         const resp = await fetch('../dic/palavras.txt');
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        PALAVRAS_COMUNS = new Set((await comuns).split(/\r?\n/)
+            .map(w => w.trim().toLowerCase()).filter(Boolean));
         const lista = (await resp.text()).split(/\r?\n/)
             .map(p => p.trim())
             .filter(p => p.length > 1 && /[a-záàâãéêíóôõúü]/i.test(p));
@@ -2522,7 +2538,9 @@ function processarBusca() {
         }
         return true;
     });
-    if (alvoAtual && modoBusca !== 'rima') {
+    if (entradaInvalida !== null) {
+        resultadosFiltrados = [];
+    } else if (alvoAtual && modoBusca !== 'rima') {
         // Esqueleto (consonantal ou vocálico): tônica, rima e acento não entram na conta.
         // Empate → comprimento mais parecido com o da palavra-base primeiro.
         // Palavras de uma categoria (mesmas / sem X) ficam mesmo abaixo do
@@ -2537,7 +2555,7 @@ function processarBusca() {
                 return { ...i, score: s, catCons: comCat ? consCategoria(i[K], alvoAtual[K]) : null };
             })
             .filter(i => i.score >= CONS_PISO || i.catCons !== null)
-            .sort((a, b) => b.score - a.score
+            .sort((a, b) => _ordemResultado(a, b)
                 || Math.abs(a.palavra.length - L) - Math.abs(b.palavra.length - L)
                 || a.palavra.localeCompare(b.palavra, 'pt-BR'));
     } else if (alvoAtual) {
@@ -2552,15 +2570,17 @@ function processarBusca() {
                 .map(i => {
                     let sA = calcScore(i, alvoAtual, setOnsetA, setAsscA, lenAsscA);
                     let sB = calcScore(i, alvoB, setOnsetB, setAsscB, lenAsscB);
-                    return { ...i, score: Math.min(sA, sB) };
+                    return { ...i, score: Math.min(sA, sB),
+                             rimaExata: i.rimaPerfeita === alvoAtual.rimaPerfeita && i.rimaPerfeita === alvoB.rimaPerfeita };
                 })
                 .filter(i => i.score > 0)
-                .sort((a, b) => b.score - a.score);
+                .sort(_ordemResultado);
         } else {
             resultadosFiltrados = filtrados
-                .map(i => ({ ...i, score: calcScore(i, alvoAtual, setOnsetA, setAsscA, lenAsscA) }))
+                .map(i => ({ ...i, score: calcScore(i, alvoAtual, setOnsetA, setAsscA, lenAsscA),
+                             rimaExata: i.rimaPerfeita === alvoAtual.rimaPerfeita }))
                 .filter(i => i.score > 0)
-                .sort((a, b) => b.score - a.score);
+                .sort(_ordemResultado);
         }
     } else {
         resultadosFiltrados = filtrados
@@ -2569,6 +2589,17 @@ function processarBusca() {
     }
     renderResultados();
     _updateHash();
+}
+
+// Ordem dos resultados: faixa; no modo rima, rimas perfeitas (mesma
+// terminação desde a tônica) antes das quase-rimas da mesma faixa; depois
+// palavras comuns antes das raras; por fim a pontuação. Assim "pé" e "maré"
+// vêm antes de "nafé", mas "era" nunca passa à frente de "berra" para "terra".
+function _ordemResultado(a, b) {
+    return getBandaKey(b.score) - getBandaKey(a.score)
+        || (b.rimaExata === true) - (a.rimaExata === true)
+        || (b.freq === 'comum') - (a.freq === 'comum')
+        || b.score - a.score;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2714,8 +2745,8 @@ function renderLegoBar() {
             let prefix = negated ? '≠ ' : '🔒 ';
             return `<button class="lego-pill${cls}" data-lego="${def.id}"
                         role="switch" aria-checked="true"
-                        aria-label="${negated ? 'Excluir' : 'Ativo'}: ${def.label(val)}"
-                    >${prefix}${def.label(val)}</button>`;
+                        aria-label="${negated ? 'Excluir' : 'Ativo'}: ${_escHtml(String(def.label(val)))}"
+                    >${prefix}${_escHtml(String(def.label(val)))}</button>`;
         }).join('');
         return;
     }
@@ -2728,8 +2759,8 @@ function renderLegoBar() {
         let prefix  = negated ? '≠ ' : locked ? '🔒 ' : '';
         return `<button class="lego-pill${cls}" data-lego="${def.id}"
                     role="switch" aria-checked="${locked}"
-                    aria-label="${negated?'Excluir ':locked?'Ativo: ':'Travar: '}${def.label(val)}"
-                >${prefix}${def.label(val)}</button>`;
+                    aria-label="${negated?'Excluir ':locked?'Ativo: ':'Travar: '}${_escHtml(String(def.label(val)))}"
+                >${prefix}${_escHtml(String(def.label(val)))}</button>`;
     }).join('');
 }
 
@@ -2814,10 +2845,12 @@ function _rebuildGrid() {
     if (iObserver) { iObserver.disconnect(); iObserver = null; }
 
     if (resultadosVisiveis.length === 0) {
-        let isVirgin = !alvoAtual
+        let isVirgin = !alvoAtual && entradaInvalida === null
             && !Object.values(FILTROS).some(v => v !== null)
             && !Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
-        let msg = isVirgin
+        let msg = entradaInvalida !== null
+            ? `<b>${_escHtml(entradaInvalida)}</b> não é uma palavra que eu consiga analisar.<br><span style="font-size:13px">Use só letras (acentos, ç, hífen e apóstrofo valem).</span>`
+            : isVirgin
             ? 'Digite uma palavra para encontrar rimas,<br><span style="font-size:13px">ou use os filtros para explorar o dicionário.</span>'
             : resultadosFiltrados.length === 0
                 ? 'Nenhuma palavra atende a estes critérios.<br><span style="font-size:13px">Ajuste os filtros ou limpe os blocos travados.</span>'
@@ -2860,13 +2893,13 @@ function renderChunk() {
         if (!mostrarSilabas) {
             let tonica = item.silabas[item.tonicaIndex] || '';
             sylHtml = item.silabas.map((s, i) =>
-                i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s
+                i === item.tonicaIndex ? `<span class="tonica">${_escHtml(s)}</span>` : _escHtml(s)
             ).join('');
         } else {
             let sepFinal = ehFinalAmbiguo(item.silabas) ? ':' : '·';
             let sils = item.silabas;
             sylHtml = sils.map((s, i) => {
-                let part = i === item.tonicaIndex ? `<span class="tonica">${s}</span>` : s;
+                let part = i === item.tonicaIndex ? `<span class="tonica">${_escHtml(s)}</span>` : _escHtml(s);
                 if (i < sils.length - 1) {
                     let sep = (i === sils.length - 2 && sepFinal === ':') ? ':' : '·';
                     return part + sep;
@@ -2875,9 +2908,9 @@ function renderChunk() {
             }).join('');
         }
         let rhymeTag = (alvoAtual && modoBusca !== 'rima')
-            ? `<span class="card-rkey">${item[_esqK()].leg}</span>`
+            ? `<span class="card-rkey">${_escHtml(item[_esqK()].leg)}</span>`
             : (alvoAtual && item.rimaPerfeita)
-            ? `<span class="card-rkey">-${item.rimaPerfeita}</span>` : '';
+            ? `<span class="card-rkey">-${_escHtml(item.rimaPerfeita)}</span>` : '';
         card.innerHTML = `<span>${sylHtml}</span>${rhymeTag}`;
         frag.appendChild(card);
     });
@@ -2888,9 +2921,32 @@ function renderChunk() {
 /* ═══════════════════════════════════════════════════════════════
    10. DEFINIR ALVO
 ═══════════════════════════════════════════════════════════════ */
+/* Entrada do usuário (caixa de busca, link #molde=, histórico): só letras,
+   incluindo acentuadas e ç, mais hífen e apóstrofo. Tudo o mais é recusado,
+   o que fecha a porta para HTML injetado pela busca ou por um link.
+   As palavras finais das letras de música NÃO passam por aqui: vão direto a
+   perfilFonetico, como no build-corpus.js, para continuar casando com o corpus. */
+const ENTRADA_OK = /^[a-zà-öø-ÿ'\-]+$/;
+function palavraValida(raw) {
+    const w = String(raw || '').normalize('NFC').toLowerCase().trim();
+    return (w && ENTRADA_OK.test(w) && /[a-zà-öø-ÿ]/.test(w)) ? w : null;
+}
+let entradaInvalida = null;   // texto recusado; enquanto houver, a busca mostra o aviso em vez de resultados
+function _marcarEntradaInvalida(raw) {
+    entradaInvalida = String(raw).trim();
+    alvoAtual = null; alvoB = null;
+    FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
+    _closeIntersect();
+    renderLegoBar();
+    processarBusca();
+}
+
 function setAlvoPalavra(palavra) {
-    let perfil = perfilFonetico(palavra);
-    if (!perfil) return;
+    const w = palavraValida(palavra);
+    let perfil = w && perfilFonetico(w);
+    if (!perfil) { if (String(palavra || '').trim()) _marcarEntradaInvalida(palavra); return; }
+    palavra = w;
+    entradaInvalida = null;
     alvoAtual = perfil;
     alvoB     = null;
     CAMPOS_MOLDE.forEach(k => { FILTROS[k] = null; FILTROS_NEG[k] = false; });
@@ -2914,8 +2970,9 @@ function setAlvoPalavra(palavra) {
 
 function setAlvoB(palavra) {
     if (!alvoAtual) return;
-    let perfil = perfilFonetico(palavra);
-    if (!perfil) return;
+    const w = palavraValida(palavra);
+    let perfil = w && perfilFonetico(w);
+    if (!perfil) { if (alvoB) { alvoB = null; processarBusca(); } return; }
     alvoB = perfil;
     FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
     processarBusca();
@@ -2923,7 +2980,7 @@ function setAlvoB(palavra) {
 }
 
 function clearAlvo() {
-    alvoAtual = null; alvoB = null;
+    alvoAtual = null; alvoB = null; entradaInvalida = null;
     CAMPOS_MOLDE.forEach(k => { FILTROS[k] = null; FILTROS_NEG[k] = false; });
     FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
     document.getElementById('input-a').value = '';
@@ -3337,12 +3394,12 @@ function _addToHistorico(palavra) {
     renderHistorico();
 }
 function renderHistorico() {
-    let hist = _getHistorico();
+    let hist = _getHistorico().filter(h => palavraValida(h));   // descarta entradas antigas inválidas
     let list = document.getElementById('hist-list');
     if (!hist.length) { list.innerHTML = '<div style="padding:8px 12px;font-size:13px;color:var(--muted)">Nenhuma busca recente.</div>'; return; }
     list.innerHTML = hist.map(h =>
-        `<div class="hist-item" data-hist="${h}">
-            <span class="hist-icon">↩</span> ${h}
+        `<div class="hist-item" data-hist="${_escHtml(h)}">
+            <span class="hist-icon">↩</span> ${_escHtml(h)}
          </div>`
     ).join('');
 }
@@ -3396,7 +3453,8 @@ function _restoreFromHash() {
         let params = {};
         hash.split('&').forEach(p => { let [k,v] = p.split('='); params[k] = v ? decodeURIComponent(v) : ''; });
         if ('molde' in params && params.molde) {
-            let perfil = perfilFonetico(params.molde);
+            params.molde = palavraValida(params.molde);
+            let perfil = params.molde && perfilFonetico(params.molde);
             if (!perfil) return;
             alvoAtual = perfil;
             modoBusca = (params.modo === 'cons' || params.modo === 'vog') ? params.modo : 'rima';
@@ -3411,7 +3469,8 @@ function _restoreFromHash() {
                 if (k in FILTROS && alvoAtual[k] !== undefined) { FILTROS[k] = alvoAtual[k]; FILTROS_NEG[k] = true; }
             });
             if (params.alvoB) {
-                let pb = perfilFonetico(params.alvoB);
+                params.alvoB = palavraValida(params.alvoB);
+                let pb = params.alvoB && perfilFonetico(params.alvoB);
                 if (pb) {
                     alvoB = pb; _intersectOpen = true;
                     document.getElementById('input-b').value = params.alvoB;
@@ -3471,8 +3530,9 @@ document.getElementById('input-a').addEventListener('input', e => {
     let val = e.target.value.trim();
     document.getElementById('btn-clear-a').classList.toggle('hidden', !val);
     clearTimeout(_debA);
+    if (!val && entradaInvalida !== null) { entradaInvalida = null; processarBusca(); }
     if (val.length < 2) return;
-    _debA = setTimeout(() => { if (perfilFonetico(val)) setAlvoPalavra(val); }, 280);
+    _debA = setTimeout(() => setAlvoPalavra(val), 280);
 });
 document.getElementById('input-a').addEventListener('keypress', e => {
     if (e.key !== 'Enter') return;
