@@ -324,10 +324,20 @@ body {
 
 /* Subbar: band chips + lego pills */
 #subbar {
-  flex-shrink: 0;
+  /* Dentro do #viewport: gruda no topo da área rolável, mas sai de cena
+     (translate, sem mexer no layout) ao rolar para baixo e volta ao rolar
+     para cima. Antes ficava fora da rolagem e, no celular, somado à barra
+     de busca, ocupava metade da tela o tempo todo. */
+  position: sticky; top: 0; z-index: 5;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
+#subbar.recolhido { transform: translateY(-100%); box-shadow: none; }
+#subbar.flutuando { box-shadow: 0 2px 10px rgba(0,0,0,0.10); }
+/* Só um botão de limpar na busca: some o "×" nativo do type=search */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 /* Band chips grid — equal-size, always tappable */
 #band-wrap {
   padding: 10px 10px 0;
@@ -953,21 +963,23 @@ body {
 
   <!-- Results zone -->
   <div id="results-zone">
-    <!-- Subbar: spectrum + lego -->
-    <div id="subbar">
-      <div id="band-wrap">
-        <div id="band-grid" role="group" aria-label="Filtrar por qualidade de rima"></div>
-        <div id="cat-grid" role="group" aria-label="Filtrar por sons presentes"></div>
-        <div id="band-meta">
-          <span id="band-count-label"></span>
-          <button id="band-clear" onclick="clearBandFilter()">✕ limpar filtro</button>
-        </div>
-      </div>
-      <div id="lego-bar" role="group" aria-label="Blocos fonéticos"></div>
-      <div id="count-bar"></div>
-    </div>
     <!-- Grid -->
     <div id="viewport">
+      <!-- Faixas + pílulas rolam junto com os resultados e voltam ao rolar
+           para cima (_subbarRetorno); só a busca fica sempre fixa -->
+      <!-- Subbar: spectrum + lego -->
+      <div id="subbar">
+        <div id="band-wrap">
+          <div id="band-grid" role="group" aria-label="Filtrar por qualidade de rima"></div>
+          <div id="cat-grid" role="group" aria-label="Filtrar por sons presentes"></div>
+          <div id="band-meta">
+            <span id="band-count-label"></span>
+            <button id="band-clear" onclick="clearBandFilter()">✕ limpar filtro</button>
+          </div>
+        </div>
+        <div id="lego-bar" role="group" aria-label="Blocos fonéticos"></div>
+        <div id="count-bar"></div>
+      </div>
       <div class="grid" id="grid" role="list" aria-label="Resultados">
         <div class="empty-state" id="empty-state">
           <span class="loader"></span>
@@ -2598,6 +2610,7 @@ function toggleBanda(key) {
     _calcVisiveis();
     _rebuildGrid();
     _renderBandChips();
+    document.getElementById('viewport').scrollTo({ top: 0 });   // o chip pode ter sido tocado flutuando no meio da lista
     if (navigator.vibrate) navigator.vibrate(15);
 }
 
@@ -2606,6 +2619,7 @@ function clearBandFilter() {
     _calcVisiveis();
     _rebuildGrid();
     _renderBandChips();
+    document.getElementById('viewport').scrollTo({ top: 0 });
     if (navigator.vibrate) navigator.vibrate(20);
 }
 
@@ -3624,6 +3638,25 @@ legoBar.addEventListener('click', e => {
     if (pill) toggleLego(pill.dataset.lego);
 });
 legoBar.addEventListener('contextmenu', e => e.preventDefault());
+
+// Quick return das faixas/pílulas: escondem ao rolar para baixo, voltam ao rolar para cima
+(function _subbarRetorno() {
+    const vp = document.getElementById('viewport'), sb = document.getElementById('subbar');
+    let ultimoY = 0, pendente = false;
+    vp.addEventListener('scroll', () => {
+        if (pendente) return;
+        pendente = true;
+        requestAnimationFrame(() => {
+            pendente = false;
+            const y = vp.scrollTop, dy = y - ultimoY, h = sb.offsetHeight;
+            if (y <= h)        sb.classList.remove('recolhido');   // perto do topo: sempre visível
+            else if (dy > 6)   sb.classList.add('recolhido');      // descendo
+            else if (dy < -6)  sb.classList.remove('recolhido');   // subindo
+            sb.classList.toggle('flutuando', y > h && !sb.classList.contains('recolhido'));
+            if (Math.abs(dy) > 6 || y <= h) ultimoY = y;
+        });
+    }, { passive: true });
+})();
 
 // Category chips (modo CONS): click + teclado
 const _catGrid = document.getElementById('cat-grid');
