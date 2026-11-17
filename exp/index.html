@@ -901,6 +901,20 @@ body {
       </div>
     </div>
     <div class="sb-section">
+      <span class="sb-label">Consoantes em qualquer ordem</span>
+      <input id="cons-livre-input" class="sb-input" type="text"
+             placeholder="td, mtd, ch r…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Consoantes que a palavra deve ter, em qualquer ordem">
+      <p class="sb-hint">Todas presentes, em qualquer ordem e posição. Ex: "td" → dote, tudo, data. Vale letra ou som: "s" acha casa e cidade</p>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolLivre(-1)" aria-label="Menos tolerância">−</button>
+        <span class="tol-val" id="tol-livre-val-sb">Exato</span>
+        <button class="tol-btn" onclick="stepTolLivre(1)" aria-label="Mais tolerância">+</button>
+      </div>
+    </div>
+    <div class="sb-section">
       <span class="sb-label">Interseção A ∩ B</span>
       <button class="sb-intersect-btn" id="sb-intersect-btn" onclick="toggleIntersect()">
         ∩ também rima com…
@@ -1147,6 +1161,20 @@ body {
         <button class="tol-btn" onclick="stepTolerancia(-1)">−</button>
         <span class="tol-val" id="tol-val-sh">0</span>
         <button class="tol-btn" onclick="stepTolerancia(1)">+</button>
+      </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Consoantes em qualquer ordem</span>
+      <input id="cons-livre-input-sh" class="sb-input" type="text"
+             placeholder="td, mtd, ch r…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Consoantes que a palavra deve ter, em qualquer ordem">
+      <p class="sb-hint">Todas presentes, em qualquer ordem e posição. Ex: "td" → dote, tudo, data. Vale letra ou som: "s" acha casa e cidade</p>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolLivre(-1)">−</button>
+        <span class="tol-val" id="tol-livre-val-sh">Exato</span>
+        <button class="tol-btn" onclick="stepTolLivre(1)">+</button>
       </div>
     </div>
     <div class="sh-section">
@@ -1542,17 +1570,21 @@ function calcEsqueleto(palavra) {
     const w = palavra.toLowerCase(), semVogal = !ESQ_VOG.test(w);
     const isV = ch => !!ch && ESQ_VOG.test(ch);
     const frontV = ch => !!ch && /[eiéêíy]/.test(ch);
-    let s = '', g = [], leg = [];
-    const push = (sym, coda, gap, lg) => {
-        s += sym; leg.push(lg || ESQ_LEGIVEL[sym] || sym);
+    // l: letra-base de cada consoante (casa → s, mas soa z), para o filtro
+    // "em qualquer ordem" aceitar tanto a grafia quanto o som
+    let s = '', l = '', g = [], leg = [], c = '';
+    const push = (sym, coda, gap, lg, letra) => {
+        s += sym; l += letra || (/^[a-zç]$/.test(c) ? c : sym);
+        leg.push(lg || ESQ_LEGIVEL[sym] || sym);
         g.push(gap != null ? gap : (coda && !semVogal ? 0.35 : 0.6));
     };
     for (let i = 0; i < w.length; i++) {
-        const c = w[i], n = w[i+1], prev = w[i-1];
+        c = w[i];
+        const n = w[i+1], prev = w[i-1];
         if (isV(c) || !/[a-zç]/.test(c)) continue;
-        if (n === 'h' && c === 'c') { push('ʃ'); i++; continue; }
-        if (n === 'h' && c === 'l') { push('ʎ'); i++; continue; }
-        if (n === 'h' && c === 'n') { push('ɲ'); i++; continue; }
+        if (n === 'h' && c === 'c') { push('ʃ', false, null, null, 'ʃ'); i++; continue; }
+        if (n === 'h' && c === 'l') { push('ʎ', false, null, null, 'ʎ'); i++; continue; }
+        if (n === 'h' && c === 'n') { push('ɲ', false, null, null, 'ɲ'); i++; continue; }
         if (c === 'h') continue;
         const coda = !semVogal && !isV(n);
         switch (c) {
@@ -1586,7 +1618,36 @@ function calcEsqueleto(palavra) {
         }
     }
     let gs = 0; for (const x of g) gs += x;
-    return { s, g, gs, leg: leg.join('·') };
+    return { s, l, g, gs, leg: leg.join('·') };
+}
+
+/* Filtro "consoantes em qualquer ordem": toda consoante pedida precisa de
+   um par distinto na palavra (multiconjunto: "tt" exige dois t), em qualquer
+   ordem e posição. Casa por som OU por letra ("s" acha casa e cidade; "g"
+   acha gato e gente). Tolerância 1 = par de sonoridade (t/d, p/b, s/z, ch/j);
+   2 = também nasais e líquidas próximas (m/n, nh/n, r/l, lh/l). */
+const ESQ_LIQUIDAS = new Set(['ɾ', 'ʁ', 'l', 'ʎ', 'w']);
+function _consParOk(qs, ql, ws, wl, tol) {
+    if (qs === ws || ql === wl) return true;
+    if (!tol) return false;
+    const c = _esqSub(qs, ws);
+    if (c < 0.10) return true;                       // tier 1: sonoridade
+    return tol >= 2 && (c < 0.20 || (ESQ_LIQUIDAS.has(qs) && ESQ_LIQUIDAS.has(ws)));
+}
+function consQualquerOrdem(W, Q, tol) {
+    const n = Q.s.length, m = W.s.length;
+    if (n > m) return false;
+    const dono = new Int8Array(m).fill(-1);          // consoante da palavra → índice em Q
+    const tenta = (qi, visto) => {                   // emparelhamento bipartido (caminho aumentante)
+        for (let j = 0; j < m; j++) {
+            if (visto[j] || !_consParOk(Q.s[qi], Q.l[qi], W.s[j], W.l[j], tol)) continue;
+            visto[j] = 1;
+            if (dono[j] < 0 || tenta(dono[j], visto)) { dono[j] = qi; return true; }
+        }
+        return false;
+    };
+    for (let qi = 0; qi < n; qi++) if (!tenta(qi, new Uint8Array(m))) return false;
+    return true;
 }
 const _esqCache = new Map();
 function _esqSub(a, b) {
@@ -1682,6 +1743,7 @@ let FILTROS_CONTEM = {
     consAntes: null, vogAntes: null, consDepois: null, vogDepois: null,
     toleranciaAoRedor: 0, terminacao: null,
     inicio: null, grafAntes: null, grafDepois: null,
+    consLivre: null, toleranciaLivre: 0,   // consoantes em qualquer ordem
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1963,7 +2025,7 @@ function _descreverPosicao(palavra) {
         let banda = alvoAtual && item.score > 0 ? BANDAS.find(b => b.key === getBandaKey(item.score)) : null;
         return `Posição <b>#${(idx + 1).toLocaleString('pt-BR')}</b>`
             + ` de ${resultadosVisiveis.length.toLocaleString('pt-BR')}`
-            + (banda ? ` · ${banda.label}` : '') + '.';
+            + (banda ? ` · ${_bandLabel(banda)}` : '') + '.';
     }
     if (resultadosFiltrados.some(i => i.palavra === palavra))
         return 'Não aparece: está numa faixa oculta pelo filtro do espectro.';
@@ -2238,6 +2300,11 @@ function processarBusca() {
     let inicioList = _lista(FILTROS_CONTEM.inicio);
     let antesList  = _lista(FILTROS_CONTEM.grafAntes);
     let depoisList = _lista(FILTROS_CONTEM.grafDepois);
+    // Consoantes em qualquer ordem: "t d", "t,d", "td" ou uma palavra (usa as consoantes dela)
+    let livreQ = FILTROS_CONTEM.consLivre
+        ? calcEsqueleto(FILTROS_CONTEM.consLivre.toLowerCase().replace(/[^a-zà-ÿç]/g, ''))
+        : null;
+    if (livreQ && !livreQ.s) livreQ = null;
     if (alvoB) base = base.filter(i => i.palavra !== alvoB.palavra);
     let filtrados = base.filter(item => {
         for (let [k, v] of Object.entries(FILTROS)) {
@@ -2274,6 +2341,7 @@ function processarBusca() {
                 if (!item.espinhaConsonantal.includes(q)) return false;
             }
         }
+        if (livreQ && !consQualquerOrdem(item.esq, livreQ, FILTROS_CONTEM.toleranciaLivre)) return false;
         if (FILTROS_CONTEM.consAntes) {
             let q = FILTROS_CONTEM.consAntes.replace(/[aeiouáàâãéêíóôõúü]/g,'');
             if (FILTROS_CONTEM.toleranciaAoRedor > 0) {
@@ -2807,8 +2875,11 @@ function resetFiltros() {
     FILTROS_CONTEM.consDepois = null; FILTROS_CONTEM.vogDepois = null;
     FILTROS_CONTEM.toleranciaAoRedor = 0; FILTROS_CONTEM.terminacao = null;
     FILTROS_CONTEM.inicio = null; FILTROS_CONTEM.grafAntes = null; FILTROS_CONTEM.grafDepois = null;
+    FILTROS_CONTEM.consLivre = null; FILTROS_CONTEM.toleranciaLivre = 0;
+    _syncTolLivreUI();
     buildSilMode = 'eq';
     ['vogais-input','vogais-input-sh','cons-input','cons-input-sh',
+     'cons-livre-input','cons-livre-input-sh',
      'cons-antes-input','cons-antes-input-sh','cons-depois-input','cons-depois-input-sh',
      'vog-antes-input','vog-antes-input-sh','vog-depois-input','vog-depois-input-sh',
      'term-input','term-input-sh','inicio-input','inicio-input-sh',
@@ -2901,6 +2972,21 @@ function stepTolerancia(delta) {
     });
     if (navigator.vibrate) navigator.vibrate(20);
     processarBusca(); _updateFabBadge();
+}
+
+const TOL_LIVRE_LABELS = ['Exato', 'Sonoridade', 'Líquidas/Nasais'];
+function _syncTolLivreUI() {
+    const lbl = TOL_LIVRE_LABELS[FILTROS_CONTEM.toleranciaLivre];
+    ['tol-livre-val-sb','tol-livre-val-sh'].forEach(id => {
+        let el = document.getElementById(id); if (el) el.textContent = lbl;
+    });
+}
+function stepTolLivre(delta) {
+    FILTROS_CONTEM.toleranciaLivre = Math.max(0, Math.min(2, FILTROS_CONTEM.toleranciaLivre + delta));
+    _syncTolLivreUI();
+    if (navigator.vibrate) navigator.vibrate(20);
+    if (FILTROS_CONTEM.consLivre) processarBusca();
+    _updateFabBadge();
 }
 
 function toggleNeg(key) {
@@ -3276,6 +3362,23 @@ function _onConsInput(e) {
 }
 document.getElementById('cons-input').addEventListener('input', _onConsInput);
 document.getElementById('cons-input-sh').addEventListener('input', _onConsInput);
+
+// Consoantes em qualquer ordem
+let _debConsLivre;
+function _onConsLivreInput(e) {
+    clearTimeout(_debConsLivre);
+    let val = e.target.value.trim();
+    ['cons-livre-input','cons-livre-input-sh'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el && el !== e.target) el.value = e.target.value;
+    });
+    _debConsLivre = setTimeout(() => {
+        FILTROS_CONTEM.consLivre = val || null;
+        processarBusca(); _updateFabBadge();
+    }, 300);
+}
+document.getElementById('cons-livre-input').addEventListener('input', _onConsLivreInput);
+document.getElementById('cons-livre-input-sh').addEventListener('input', _onConsLivreInput);
 
 document.getElementById('cons-antes-input').addEventListener('input',    e => _onArInput('consAntes',  e.target));
 document.getElementById('cons-antes-input-sh').addEventListener('input', e => _onArInput('consAntes',  e.target));

@@ -10,7 +10,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 
 | File | Role |
 |------|------|
-| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3360 lines, self-contained) |
+| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3450 lines, self-contained) |
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
@@ -40,7 +40,8 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `abrirLetra(r)` | Lazy-loads full lyrics, highlights matching stanza, shows lyrics panel |
 | `fecharLetra()` | Returns to corpus view, restores scroll position |
 | `toggleCorpusMode()` | Switches between rhyme-finder and ESQ corpus views |
-| `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
+| `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, l, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), base letter of each consonant (`casa` → s `z` / l `s`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
+| `consQualquerOrdem(W, Q, tol)` | Filter *Consoantes em qualquer ordem* (`FILTROS_CONTEM.consLivre` / `toleranciaLivre`): every consonant of `Q` needs its own partner in `W` (bipartite matching, so `tt` needs two t's), any order/position. A pair matches by sound **or** letter (`s` → casa, cidade; `g` → gato, gente). Tol 1 = voicing pairs, tol 2 = + m/n, nh/n, liquids (r/l, lh/l) |
 | `calcScoreCons(item, alvo)` | CONS-mode score: weighted edit distance between skeletons (`distEsq`/`simEsq`, substitution cost from `phonetic-engine.js`, edge gaps ×0.6), mapped onto the same 160/130/100/60 bands; vowel sequence is only a ≤15-pt tiebreak |
 | `toggleModoConsoantes()` | Topbar **CONS** button — swaps rhyme scoring for skeleton scoring. Ignores stress entirely; all filters still apply |
 
@@ -148,7 +149,7 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 
 ## Development branch
 
-Active branch: `claude/busca-consonantal`
+Active branch: `claude/consoantes-qualquer-ordem`
 
 Always push to the active branch. Never push to main without explicit instruction.
 Confirm the branch actually exists before trusting this line — it goes stale after
