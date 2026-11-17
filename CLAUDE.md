@@ -139,6 +139,29 @@ Known gaps, deliberately left alone:
 
 ---
 
+## User input & result order
+
+- **Every word the user supplies goes through `palavraValida(raw)`** — search box,
+  `#molde=`/`alvoB=` links, history. Only letters (accented, `ç`), hyphen and
+  apostrophe pass (`ENTRADA_OK`). Anything else sets `entradaInvalida`, clears the
+  anchor and shows a message instead of results (before: the old word's results
+  stayed on screen, and raw HTML from the box or a link reached `innerHTML`).
+- Lyric words in the lyrics panel deliberately **skip** `palavraValida` and go
+  straight to `perfilFonetico`, exactly like `build-corpus.js`, so stanzas keep
+  matching the pre-built corpus.
+- Output that reaches `innerHTML` (card syllables, rhyme tags, filter pills,
+  history, corpus cards) is escaped with `_escHtml` as a second line of defence.
+- **`dic/k-palavras.txt` is the common-word list** (`PALAVRAS_COMUNS`, ~46k
+  lowercase forms, ~14k match the dictionary). Loaded in parallel with
+  `palavras.txt`; if it fails, `calcFreq` falls back to the old length heuristic.
+  It drives the *Frequência* filter (`freq === 'comum'`) and the result order.
+- **Result order** (`_ordemResultado`): band → (Rima mode) perfect rhyme
+  `rimaExata` before near-rhymes of the same band → common before rare → score.
+  CONS/VOG then break ties by length closeness. Without the `rimaExata` step,
+  common near-rhymes jumped above perfect ones (`terra` → `era` before `berra`).
+
+---
+
 ## Scoring system
 
 `calcScore()` returns a number. Bands:
@@ -178,7 +201,7 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 
 ## Development branch
 
-Active branch: `claude/recupera-commits-orfaos`
+Active branch: `claude/entrada-segura-e-ranking`
 
 Always push to the active branch. Never push to main without explicit instruction.
 Confirm the branch actually exists before trusting this line — it goes stale after
