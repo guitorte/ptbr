@@ -710,6 +710,7 @@ body {
     <button class="topbar-btn" id="btn-intersect" title="Interseção A∩B" aria-label="Busca de interseção" style="font-size:14px;font-weight:800;">∩</button>
     <button class="topbar-btn" id="btn-hist" title="Histórico" aria-label="Histórico de buscas" style="font-size:15px;">⏱</button>
     <button class="topbar-btn active" id="btn-silabas" title="Separação de sílabas" aria-label="Alternar separação de sílabas" onclick="toggleSilabas()" style="font-size:11px;font-weight:700;letter-spacing:-0.5px;">SÍL</button>
+    <button class="topbar-btn" id="btn-cons" title="Modo consoantes: compara o esqueleto consonantal e ignora a tônica (metade → método). Sem vogais, digite o próprio esqueleto: dt, mtd" aria-label="Alternar busca por esqueleto consonantal, sem tônica" aria-pressed="false" onclick="toggleModoConsoantes()" style="font-size:10px;font-weight:700;letter-spacing:-0.5px;">CONS</button>
     <button class="topbar-btn" id="btn-add" title="Adicionar palavra ao dicionário" aria-label="Adicionar palavra" onclick="toggleAddPop()" style="font-size:20px;font-weight:600;">+</button>
     <button class="topbar-btn" id="btn-favs" title="Palavras salvas" aria-label="Ver palavras salvas" onclick="abrirFavoritos()" style="font-size:15px;">★</button>
   </div>
@@ -1459,6 +1460,7 @@ function perfilFonetico(palavra) {
         vogalTonica: calcVogalT(sil[ti]),
         espinhaVocal: calcEspinha(pL),
         espinhaConsonantal: calcEspinhaConsonantal(pL),
+        esq: calcEsqueleto(pL),
         assConsonantal: calcAssC(sil, ti),
         consAntes:  calcConsAntes(sil, ti),
         vogAntes:   calcVogAntes(sil, ti),
@@ -1524,6 +1526,118 @@ function calcScore(item, alvo, setOnset, setAssC, lenAssC) {
     return s;
 }
 
+/* ── 2b. MODO CONS: esqueleto consonantal, sem tônica ───────────────────
+   Compara só a sequência de consoantes (como SOAM, não como se escrevem),
+   ignorando tônica, rima e vogais: metade m·t·d → método, metido, medida.
+   Distância = edição ponderada entre esqueletos, com custo de troca vindo
+   da tabela de traços (t/d, p/b ≈ 0; m/t caro) e lacuna mais barata nas
+   bordas e na coda (nasal e l de coda quase não pesam). Uma entrada sem
+   vogal ("dt", "mtd") é lida como o próprio esqueleto.
+   Não toca em silabificar/identificarTonica — nada a sincronizar com as
+   outras cópias do motor nem com o corpus. */
+const ESQ_VOG    = /[aeiouáàâãéêíóôõúüy]/;
+const ESQ_LEGIVEL = { 'ʃ':'ch', 'ʒ':'j', 'ʎ':'lh', 'ɲ':'nh', 'ɾ':'r', 'ʁ':'rr' };
+const ESQ_BORDA  = 0.6;   // lacuna no início/fim custa 60% (adoto ⊂ metade)
+function calcEsqueleto(palavra) {
+    const w = palavra.toLowerCase(), semVogal = !ESQ_VOG.test(w);
+    const isV = ch => !!ch && ESQ_VOG.test(ch);
+    const frontV = ch => !!ch && /[eiéêíy]/.test(ch);
+    let s = '', g = [], leg = [];
+    const push = (sym, coda, gap, lg) => {
+        s += sym; leg.push(lg || ESQ_LEGIVEL[sym] || sym);
+        g.push(gap != null ? gap : (coda && !semVogal ? 0.35 : 0.6));
+    };
+    for (let i = 0; i < w.length; i++) {
+        const c = w[i], n = w[i+1], prev = w[i-1];
+        if (isV(c) || !/[a-zç]/.test(c)) continue;
+        if (n === 'h' && c === 'c') { push('ʃ'); i++; continue; }
+        if (n === 'h' && c === 'l') { push('ʎ'); i++; continue; }
+        if (n === 'h' && c === 'n') { push('ɲ'); i++; continue; }
+        if (c === 'h') continue;
+        const coda = !semVogal && !isV(n);
+        switch (c) {
+            case 'r':
+                if (n === 'r') { push('ʁ'); i++; }
+                else push(!semVogal && (i === 0 || /[nls]/.test(prev || '')) ? 'ʁ' : 'ɾ', coda);
+                break;
+            case 's':
+                if (n === 's' || n === 'ç' || (n === 'c' && frontV(w[i+2]))) { push('s'); i++; }
+                else push(isV(prev) && isV(n) ? 'z' : 's', coda);
+                break;
+            case 'c': push(frontV(n) ? 's' : 'k', coda); break;
+            case 'ç': push('s'); break;
+            case 'q': push('k'); break;
+            case 'g': push(frontV(n) ? 'ʒ' : 'g', coda); break;
+            case 'j': push('ʒ'); break;
+            case 'x':
+                if (n === 'c' && frontV(w[i+2])) break;               // exceção
+                push(prev === 'e' && i === 1 && isV(n) ? 'z' : 'ʃ', coda); // exame / xis
+                break;
+            case 'm': case 'n':
+                if (coda) push('ŋ', true, 0.25, 'ⁿ');                 // só nasaliza a vogal
+                else push(c);
+                break;
+            case 'l':
+                if (coda) push('w', true, 0.3, 'l');                  // l de coda soa [w]
+                else push('l');
+                break;
+            case 'y': break;
+            default: push(c, coda);
+        }
+    }
+    let gs = 0; for (const x of g) gs += x;
+    return { s, g, gs, leg: leg.join('·') };
+}
+const _esqCache = new Map();
+function _esqSub(a, b) {
+    if (a === b) return 0;
+    const k = a + b;
+    let v = _esqCache.get(k);
+    if (v === undefined) {
+        const r = (typeof PhoneticEngine !== 'undefined') ? PhoneticEngine.phoneticDistance(a, b) : { error: true };
+        v = r.error ? 1 : r.cost;
+        _esqCache.set(k, v);
+    }
+    return v;
+}
+let _esqPrev = new Float64Array(32), _esqCur = new Float64Array(32);
+function distEsq(A, B) {
+    const la = A.s.length, lb = B.s.length;
+    if (_esqPrev.length <= lb) { _esqPrev = new Float64Array(lb + 1); _esqCur = new Float64Array(lb + 1); }
+    let prev = _esqPrev, cur = _esqCur;
+    prev[0] = 0;
+    for (let j = 1; j <= lb; j++) prev[j] = prev[j-1] + B.g[j-1] * ESQ_BORDA;
+    for (let i = 1; i <= la; i++) {
+        const ga = A.g[i-1], a = A.s[i-1], fimA = i === la;
+        cur[0] = prev[0] + ga * ESQ_BORDA;
+        for (let j = 1; j <= lb; j++) {
+            const sb = prev[j-1] + _esqSub(a, B.s[j-1]);
+            const dl = prev[j]   + ga * (j === lb ? ESQ_BORDA : 1);
+            const in_ = cur[j-1] + B.g[j-1] * (fimA ? ESQ_BORDA : 1);
+            cur[j] = sb < dl ? (sb < in_ ? sb : in_) : (dl < in_ ? dl : in_);
+        }
+        const t = prev; prev = cur; cur = t;
+    }
+    return prev[lb];
+}
+// 0…1: 1 = mesmo esqueleto; ~0.55 é a mediana do dicionário
+function simEsq(A, B) {
+    const m = Math.max(A.gs, B.gs);
+    return m ? Math.max(0, 1 - distEsq(A, B) / m) : 1;
+}
+// Mesma escala das bandas do modo rima (160/130/100/60): sim 1 → 170,
+// + até 15 se a sequência de vogais coincidir (desempate, nunca decide).
+const CONS_PISO = 60;
+function calcScoreCons(item, alvo) {
+    let s = 170 * (simEsq(alvo.esq, item.esq) - 0.55) / 0.45;
+    if (s < CONS_PISO - 15) return 0;
+    if (alvo.espinhaVocal) {
+        const d = item.espinhaVocal === alvo.espinhaVocal ? 0 : levenshtein(alvo.espinhaVocal, item.espinhaVocal);
+        if (d === 0) s += 15; else if (d === 1) s += 8;
+    }
+    return Math.round(s);
+}
+
 const BANDAS = [
     { key:160, label:'Rima',        cls:'b-rima',  color:'var(--c-rima)'  },
     { key:130, label:'Quase-rima',  cls:'b-qrima', color:'var(--c-qrima)' },
@@ -1532,6 +1646,9 @@ const BANDAS = [
     { key:25,  label:'Proximidade', cls:'b-prox',  color:'var(--c-prox)'  },
     { key:10,  label:'Ritmo',       cls:'b-ritmo', color:'var(--c-ritmo)' },
 ];
+// No modo CONS as mesmas faixas medem semelhança de esqueleto, não rima
+const BANDA_LABEL_CONS = { 160:'Mesmo esqueleto', 130:'Quase igual', 100:'Próximo', 60:'Parcial', 25:'Distante', 10:'Vago' };
+function _bandLabel(b) { return modoConsoantes ? BANDA_LABEL_CONS[b.key] : b.label; }
 function getBandaKey(score) {
     if (score >= 160) return 160;
     if (score >= 130) return 130;
@@ -1547,6 +1664,7 @@ function getBandaKey(score) {
 let dicionario         = [];
 let alvoAtual          = null;
 let alvoB              = null;
+let modoConsoantes     = false;   // true = busca por esqueleto consonantal (sem tônica)
 let FILTROS = {
     numSilabas: null, acentuacao: null, vogalTonica: null,
     onsetTonico: null, familiaCluster: null,
@@ -1754,6 +1872,22 @@ function toggleSilabas() {
     mostrarSilabas = !mostrarSilabas;
     document.getElementById('btn-silabas').classList.toggle('active', mostrarSilabas);
     renderResultados();
+}
+
+function _syncModoConsUI() {
+    const btn = document.getElementById('btn-cons');
+    btn.classList.toggle('active', modoConsoantes);
+    btn.setAttribute('aria-pressed', String(modoConsoantes));
+    document.getElementById('input-a').placeholder = modoConsoantes
+        ? 'Palavra ou esqueleto (dt, mtd)…' : 'Palavra ou rima…';
+}
+function toggleModoConsoantes(force) {
+    modoConsoantes = typeof force === 'boolean' ? force : !modoConsoantes;
+    _syncModoConsUI();
+    FILTRO_BANDAS.clear();   // as faixas mudam de sentido entre os modos
+    if (navigator.vibrate) navigator.vibrate(25);
+    processarBusca();
+    document.getElementById('viewport').scrollTo({ top: 0 });
 }
 
 function toggleCorpusMode() {
@@ -2166,7 +2300,21 @@ function processarBusca() {
         }
         return true;
     });
-    if (alvoAtual) {
+    if (alvoAtual && modoConsoantes) {
+        // Esqueleto consonantal: tônica, rima e acento não entram na conta.
+        // Empate → comprimento mais parecido com o da palavra-base primeiro.
+        const L = alvoAtual.palavra.length;
+        resultadosFiltrados = filtrados
+            .map(i => {
+                let s = calcScoreCons(i, alvoAtual);
+                if (alvoB && s) s = Math.min(s, calcScoreCons(i, alvoB));
+                return { ...i, score: s };
+            })
+            .filter(i => i.score >= CONS_PISO)
+            .sort((a, b) => b.score - a.score
+                || Math.abs(a.palavra.length - L) - Math.abs(b.palavra.length - L)
+                || a.palavra.localeCompare(b.palavra, 'pt-BR'));
+    } else if (alvoAtual) {
         let setOnsetA = new Set(alvoAtual.onsetTonico);
         let setAsscA  = new Set(alvoAtual.assConsonantal);
         let lenAsscA  = alvoAtual.assConsonantal.length;
@@ -2246,13 +2394,14 @@ function _renderBandChips() {
                      style="color:${b.color}"
                      onclick="toggleBanda(${b.key})"
                      role="button" tabindex="0"
-                     aria-label="${b.label}: ${counts[b.key]} palavras${ativo ? '' : ' (oculta)'}"
+                     aria-label="${_bandLabel(b)}: ${counts[b.key]} palavras${ativo ? '' : ' (oculta)'}"
                 ><span class="band-dot" style="background:${b.color}"></span>
-                 <span class="band-label">${b.label}</span>
+                 <span class="band-label">${_bandLabel(b)}</span>
                  <span class="band-count">${counts[b.key].toLocaleString('pt-BR')}</span></div>`;
     }).join('');
 
     let sufixo = alvoB ? ' (A∩B)' : '';
+    if (modoConsoantes) sufixo += ` · esqueleto ${alvoAtual.esq.leg || '—'}${alvoB ? ' ∩ ' + (alvoB.esq.leg || '—') : ''}`;
     let countEl = document.getElementById('band-count-label');
     countEl.textContent = FILTRO_BANDAS.size > 0
         ? `${nVis.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')} palavras${sufixo}`
@@ -2450,7 +2599,9 @@ function renderChunk() {
                 return part;
             }).join('');
         }
-        let rhymeTag = (alvoAtual && item.rimaPerfeita)
+        let rhymeTag = (alvoAtual && modoConsoantes)
+            ? `<span class="card-rkey">${item.esq.leg}</span>`
+            : (alvoAtual && item.rimaPerfeita)
             ? `<span class="card-rkey">-${item.rimaPerfeita}</span>` : '';
         card.innerHTML = `<span>${sylHtml}</span>${rhymeTag}`;
         frag.appendChild(card);
@@ -2925,6 +3076,7 @@ function _updateHash() {
     if (alvoAtual) {
         parts.push('molde=' + encodeURIComponent(alvoAtual.palavra));
         if (alvoB) parts.push('alvoB=' + encodeURIComponent(alvoB.palavra));
+        if (modoConsoantes) parts.push('modo=cons');
         let locks = [], negs = [];
         for (let k of Object.keys(FILTROS)) {
             if (FILTROS[k] !== null) {
@@ -2954,6 +3106,8 @@ function _restoreFromHash() {
             let perfil = perfilFonetico(params.molde);
             if (!perfil) return;
             alvoAtual = perfil;
+            modoConsoantes = params.modo === 'cons';
+            _syncModoConsUI();
             CAMPOS_MOLDE.forEach(k => { FILTROS[k] = null; FILTROS_NEG[k] = false; });
             document.getElementById('input-a').value = params.molde;
             document.getElementById('btn-clear-a').classList.remove('hidden');

@@ -10,7 +10,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 
 | File | Role |
 |------|------|
-| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~2860 lines, self-contained) |
+| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3360 lines, self-contained) |
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
@@ -40,6 +40,27 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `abrirLetra(r)` | Lazy-loads full lyrics, highlights matching stanza, shows lyrics panel |
 | `fecharLetra()` | Returns to corpus view, restores scroll position |
 | `toggleCorpusMode()` | Switches between rhyme-finder and ESQ corpus views |
+| `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
+| `calcScoreCons(item, alvo)` | CONS-mode score: weighted edit distance between skeletons (`distEsq`/`simEsq`, substitution cost from `phonetic-engine.js`, edge gaps ×0.6), mapped onto the same 160/130/100/60 bands; vowel sequence is only a ≤15-pt tiebreak |
+| `toggleModoConsoantes()` | Topbar **CONS** button — swaps rhyme scoring for skeleton scoring. Ignores stress entirely; all filters still apply |
+
+---
+
+## CONS mode (busca sem tônica)
+
+Answers "what *sounds* built like this word, whatever its stress?" — `metade` →
+`método`, `metido`, `matado`, `medida`. Typing a bare skeleton (`dt`, `mtd`)
+searches by skeleton directly (`dt` → `dote`, `dito`, `dieta`).
+
+- Lives only in `exp/index.html`; it does **not** touch `silabificar` /
+  `identificarTonica`, so there is nothing to sync with the other engine copies
+  and no corpus rebuild.
+- Bands are relabelled (Mesmo esqueleto / Quase igual / Próximo / Parcial);
+  results below 60 are dropped (`CONS_PISO`).
+- Hash: `#molde=metade&modo=cons`.
+- Calibration: from `metade`, ~43 words share the exact skeleton, ~13k pass the
+  floor. Two-consonant partials (`adoto`, `tudo`) land in *Parcial* — real
+  3-consonant neighbours (`abatido` b·t·d) are genuinely closer.
 
 ---
 
@@ -127,7 +148,7 @@ Key weights: `rimaPerfeita` exact = +125 (dominant), `onsetTonico` full = +20, `
 
 ## Development branch
 
-Active branch: `claude/exp-stress-accent-fix-qmkvj0`
+Active branch: `claude/busca-consonantal`
 
 Always push to the active branch. Never push to main without explicit instruction.
 Confirm the branch actually exists before trusting this line — it goes stale after
