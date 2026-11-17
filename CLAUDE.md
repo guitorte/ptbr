@@ -10,7 +10,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 
 | File | Role |
 |------|------|
-| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3450 lines, self-contained) |
+| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3570 lines, self-contained) |
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
@@ -42,6 +42,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `toggleCorpusMode()` | Switches between rhyme-finder and ESQ corpus views |
 | `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, l, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), base letter of each consonant (`casa` → s `z` / l `s`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
 | `consQualquerOrdem(W, Q, tol)` | Filter *Consoantes em qualquer ordem* (`FILTROS_CONTEM.consLivre` / `toleranciaLivre`): every consonant of `Q` needs its own partner in `W` (bipartite matching, so `tt` needs two t's), any order/position. A pair matches by sound **or** letter (`s` → casa, cidade; `g` → gato, gente). Tol 1 = voicing pairs, tol 2 = + m/n, nh/n, liquids (r/l, lh/l) |
+| `consCategoria(W, A)` | CONS-mode consonant category for the second chip row (`#cat-grid`, filter `FILTRO_CAT`, result field `catCons`): `'mesmas'` = exactly the anchor's consonants in any order (`metade` → método, ditame); a symbol `X` = exactly the anchor's minus `X` ("sem m" → tudo, dote, adote). Strict: no leftover consonant, not even a coda nasal, so substitutions (`batido`, `entada`) stay in the bands. Category words bypass `CONS_PISO` |
 | `calcScoreCons(item, alvo)` | CONS-mode score: weighted edit distance between skeletons (`distEsq`/`simEsq`, substitution cost from `phonetic-engine.js`, edge gaps ×0.6), mapped onto the same 160/130/100/60 bands; vowel sequence is only a ≤15-pt tiebreak |
 | `toggleModoConsoantes()` | Topbar **CONS** button — swaps rhyme scoring for skeleton scoring. Ignores stress entirely; all filters still apply |
 
@@ -58,6 +59,10 @@ searches by skeleton directly (`dt` → `dote`, `dito`, `dieta`).
   and no corpus rebuild.
 - Bands are relabelled (Mesmo esqueleto / Quase igual / Próximo / Parcial);
   results below 60 are dropped (`CONS_PISO`).
+- Second chip row answers "where is `adote` when I type `metade`?": **mesmas
+  m·t·d · sem m · sem t · sem d**. Band row and category row combine (AND) and
+  each row's counts already reflect the other's selection. Hidden for A∩B and
+  for anchors with a single consonant.
 - Hash: `#molde=metade&modo=cons`.
 - Calibration: from `metade`, ~43 words share the exact skeleton, ~13k pass the
   floor. Two-consonant partials (`adoto`, `tudo`) land in *Parcial* — real

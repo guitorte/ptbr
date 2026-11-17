@@ -349,6 +349,11 @@ body {
   flex-shrink: 0;
 }
 .band-chip.active { border-color: currentColor; }
+/* Modo CONS: fileira "mesmas m·t·d · sem m · sem t…" */
+#cat-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+#cat-grid:empty { display: none; }
+.cat-chip { color: var(--text); min-height: 32px; padding: 5px 10px; }
+.cat-chip .band-label { flex: none; }
 /* Band meta row */
 #band-meta {
   display: flex; align-items: center; justify-content: space-between;
@@ -934,6 +939,7 @@ body {
     <div id="subbar">
       <div id="band-wrap">
         <div id="band-grid" role="group" aria-label="Filtrar por qualidade de rima"></div>
+        <div id="cat-grid" role="group" aria-label="Filtrar por consoantes presentes"></div>
         <div id="band-meta">
           <span id="band-count-label"></span>
           <button id="band-clear" onclick="clearBandFilter()">✕ limpar filtro</button>
@@ -1649,6 +1655,41 @@ function consQualquerOrdem(W, Q, tol) {
     for (let qi = 0; qi < n; qi++) if (!tenta(qi, new Uint8Array(m))) return false;
     return true;
 }
+
+/* Categoria de consoantes no modo CONS (chips "mesmas / sem m / sem t…"):
+   'mesmas' = exatamente as consoantes da palavra-base, em qualquer ordem
+              (metade → método, ditame, tímido);
+   símbolo X = exatamente as da base menos X (metade → "sem m": tudo, dote, adote).
+   Nenhuma consoante sobrando — nem a nasal de coda — de modo que "batido"
+   (m trocado por b) e "entada" (m trocado por vogal nasal) ficam nas faixas,
+   não em "sem m". Casa por som ou letra, sem tolerância. null = nenhuma.
+   `A.cs`/`A.cl`: conjuntos de símbolos/letras da base, para a rejeição rápida. */
+function consCategoria(W, A) {
+    const n = A.s.length, m = W.s.length;
+    if (m > n || m < n - 1) return null;
+    if (!A.cs) { A.cs = new Set(A.s); A.cl = new Set(A.l); }
+    for (let j = 0; j < m; j++)                       // toda consoante da palavra precisa existir na base
+        if (!A.cs.has(W.s[j]) && !A.cl.has(W.l[j])) return null;
+    const dono = new Int8Array(m).fill(-1), falta = [];
+    const tenta = (qi, visto) => {
+        for (let j = 0; j < m; j++) {
+            if (visto[j] || !_consParOk(A.s[qi], A.l[qi], W.s[j], W.l[j], 0)) continue;
+            visto[j] = 1;
+            if (dono[j] < 0 || tenta(dono[j], visto)) { dono[j] = qi; return true; }
+        }
+        return false;
+    };
+    for (let qi = 0; qi < n; qi++) {
+        if (!tenta(qi, new Uint8Array(m))) { falta.push(qi); if (falta.length > 1) return null; }
+    }
+    for (let j = 0; j < m; j++) if (dono[j] < 0) return null;   // sobrou consoante
+    return falta.length === 0 ? 'mesmas' : A.s[falta[0]];
+}
+// Rótulo legível de uma consoante da base para o chip "sem …"
+function _consNome(A, k) {
+    const sym = A.s[k];
+    return (sym === 'ŋ' || sym === 'w') ? A.l[k] : (ESQ_LEGIVEL[sym] || sym);
+}
 const _esqCache = new Map();
 function _esqSub(a, b) {
     if (a === b) return 0;
@@ -1946,7 +1987,7 @@ function _syncModoConsUI() {
 function toggleModoConsoantes(force) {
     modoConsoantes = typeof force === 'boolean' ? force : !modoConsoantes;
     _syncModoConsUI();
-    FILTRO_BANDAS.clear();   // as faixas mudam de sentido entre os modos
+    FILTRO_BANDAS.clear(); FILTRO_CAT.clear();   // as faixas mudam de sentido entre os modos
     if (navigator.vibrate) navigator.vibrate(25);
     processarBusca();
     document.getElementById('viewport').scrollTo({ top: 0 });
@@ -2230,6 +2271,7 @@ function fuzzyConsMatch(spine, query, maxTier) {
 let resultadosFiltrados = [];
 let resultadosVisiveis  = [];
 let FILTRO_BANDAS       = new Set();
+let FILTRO_CAT          = new Set();   // modo CONS: 'mesmas' e/ou consoantes faltantes ('m', 't'…)
 let itemsRenderizados   = 0;
 const CHUNK             = 60;
 let iObserver           = null;
@@ -2371,14 +2413,17 @@ function processarBusca() {
     if (alvoAtual && modoConsoantes) {
         // Esqueleto consonantal: tônica, rima e acento não entram na conta.
         // Empate → comprimento mais parecido com o da palavra-base primeiro.
+        // Palavras de uma categoria de consoantes (mesmas / sem X) ficam
+        // mesmo abaixo do piso: "adote" é resposta legítima para "metade sem m".
         const L = alvoAtual.palavra.length;
+        const comCat = !alvoB && alvoAtual.esq.s.length >= 2;
         resultadosFiltrados = filtrados
             .map(i => {
                 let s = calcScoreCons(i, alvoAtual);
                 if (alvoB && s) s = Math.min(s, calcScoreCons(i, alvoB));
-                return { ...i, score: s };
+                return { ...i, score: s, catCons: comCat ? consCategoria(i.esq, alvoAtual.esq) : null };
             })
-            .filter(i => i.score >= CONS_PISO)
+            .filter(i => i.score >= CONS_PISO || i.catCons !== null)
             .sort((a, b) => b.score - a.score
                 || Math.abs(a.palavra.length - L) - Math.abs(b.palavra.length - L)
                 || a.palavra.localeCompare(b.palavra, 'pt-BR'));
@@ -2416,10 +2461,22 @@ function processarBusca() {
 /* ═══════════════════════════════════════════════════════════════
    6. BAND FILTER
 ═══════════════════════════════════════════════════════════════ */
+const _passaBanda = i => FILTRO_BANDAS.size === 0 || FILTRO_BANDAS.has(getBandaKey(i.score));
+const _passaCat   = i => FILTRO_CAT.size === 0    || FILTRO_CAT.has(i.catCons);
 function _calcVisiveis() {
-    resultadosVisiveis = FILTRO_BANDAS.size === 0
+    resultadosVisiveis = (FILTRO_BANDAS.size === 0 && FILTRO_CAT.size === 0)
         ? resultadosFiltrados
-        : resultadosFiltrados.filter(i => FILTRO_BANDAS.has(getBandaKey(i.score)));
+        : resultadosFiltrados.filter(i => _passaBanda(i) && _passaCat(i));
+}
+
+function toggleCat(key) {
+    if (FILTRO_CAT.has(key)) FILTRO_CAT.delete(key);
+    else FILTRO_CAT.add(key);
+    _calcVisiveis();
+    _rebuildGrid();
+    _renderBandChips();
+    document.getElementById('viewport').scrollTo({ top: 0 });
+    if (navigator.vibrate) navigator.vibrate(15);
 }
 
 function toggleBanda(key) {
@@ -2432,7 +2489,7 @@ function toggleBanda(key) {
 }
 
 function clearBandFilter() {
-    FILTRO_BANDAS.clear();
+    FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
     _calcVisiveis();
     _rebuildGrid();
     _renderBandChips();
@@ -2447,11 +2504,13 @@ function _renderBandChips() {
     if (!alvoAtual) { wrap.classList.remove('visible'); return; }
     wrap.classList.add('visible');
 
+    // Contagens cruzadas: cada fileira conta já com o filtro da outra aplicado
     let counts = {};
     BANDAS.forEach(b => counts[b.key] = 0);
-    resultadosFiltrados.forEach(r => counts[getBandaKey(r.score)]++);
+    resultadosFiltrados.forEach(r => { if (_passaCat(r)) counts[getBandaKey(r.score)]++; });
     let total = resultadosFiltrados.length;
     let nVis  = resultadosVisiveis.length;
+    _renderCatChips();
 
     let grid = document.getElementById('band-grid');
     grid.innerHTML = BANDAS.map(b => {
@@ -2471,12 +2530,43 @@ function _renderBandChips() {
     let sufixo = alvoB ? ' (A∩B)' : '';
     if (modoConsoantes) sufixo += ` · esqueleto ${alvoAtual.esq.leg || '—'}${alvoB ? ' ∩ ' + (alvoB.esq.leg || '—') : ''}`;
     let countEl = document.getElementById('band-count-label');
-    countEl.textContent = FILTRO_BANDAS.size > 0
+    let filtrando = FILTRO_BANDAS.size > 0 || FILTRO_CAT.size > 0;
+    countEl.textContent = filtrando
         ? `${nVis.toLocaleString('pt-BR')} / ${total.toLocaleString('pt-BR')} palavras${sufixo}`
         : `${total.toLocaleString('pt-BR')} palavras${sufixo}`;
 
     let clrBtn = document.getElementById('band-clear');
-    clrBtn.classList.toggle('visible', FILTRO_BANDAS.size > 0);
+    clrBtn.classList.toggle('visible', filtrando);
+}
+
+// Fileira "mesmas m·t·d · sem m · sem t · sem d" (só no modo CONS, palavra com ≥2 consoantes)
+function _renderCatChips() {
+    const grid = document.getElementById('cat-grid');
+    const A = alvoAtual && alvoAtual.esq;
+    if (!modoConsoantes || !A || alvoB || A.s.length < 2) { grid.innerHTML = ''; return; }
+    const cats = [{ key: 'mesmas', label: `mesmas ${A.leg}`,
+                    title: `Exatamente ${A.leg}, em qualquer ordem` }];
+    const vistos = new Set();
+    for (let k = 0; k < A.s.length; k++) {
+        if (vistos.has(A.s[k])) continue;
+        vistos.add(A.s[k]);
+        const nome = _consNome(A, k);
+        cats.push({ key: A.s[k], label: `sem ${nome}`,
+                    title: `As outras consoantes de ${alvoAtual.palavra}, em qualquer ordem, sem ${nome} e nada no lugar` });
+    }
+    const counts = {};
+    resultadosFiltrados.forEach(r => { if (r.catCons !== null && _passaBanda(r)) counts[r.catCons] = (counts[r.catCons] || 0) + 1; });
+    grid.innerHTML = cats.map(c => {
+        const n = counts[c.key] || 0;
+        const ativo = FILTRO_CAT.has(c.key);
+        const dim = !n || (FILTRO_CAT.size > 0 && !ativo);
+        return `<div class="band-chip cat-chip${ativo ? ' active' : ''}${dim ? ' dimmed' : ''}"
+                     data-cat="${_escHtml(c.key)}" role="button" tabindex="0"
+                     title="${_escHtml(c.title)}"
+                     aria-pressed="${ativo}" aria-label="${_escHtml(c.label)}: ${n} palavras"
+                ><span class="band-label">${_escHtml(c.label)}</span>
+                 <span class="band-count">${n.toLocaleString('pt-BR')}</span></div>`;
+    }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2687,7 +2777,7 @@ function setAlvoPalavra(palavra) {
     alvoAtual = perfil;
     alvoB     = null;
     CAMPOS_MOLDE.forEach(k => { FILTROS[k] = null; FILTROS_NEG[k] = false; });
-    FILTRO_BANDAS.clear();
+    FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
     document.getElementById('input-a').value = palavra;
     document.getElementById('btn-clear-a').classList.remove('hidden');
     _closeIntersect();
@@ -2710,7 +2800,7 @@ function setAlvoB(palavra) {
     let perfil = perfilFonetico(palavra);
     if (!perfil) return;
     alvoB = perfil;
-    FILTRO_BANDAS.clear();
+    FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
     processarBusca();
     if (navigator.vibrate) navigator.vibrate(30);
 }
@@ -2718,7 +2808,7 @@ function setAlvoB(palavra) {
 function clearAlvo() {
     alvoAtual = null; alvoB = null;
     CAMPOS_MOLDE.forEach(k => { FILTROS[k] = null; FILTROS_NEG[k] = false; });
-    FILTRO_BANDAS.clear();
+    FILTRO_BANDAS.clear(); FILTRO_CAT.clear();
     document.getElementById('input-a').value = '';
     document.getElementById('input-b').value = '';
     document.getElementById('btn-clear-a').classList.add('hidden');
@@ -3417,6 +3507,19 @@ legoBar.addEventListener('click', e => {
     if (pill) toggleLego(pill.dataset.lego);
 });
 legoBar.addEventListener('contextmenu', e => e.preventDefault());
+
+// Category chips (modo CONS): click + teclado
+const _catGrid = document.getElementById('cat-grid');
+_catGrid.addEventListener('click', e => {
+    let chip = e.target.closest('[data-cat]');
+    if (chip) toggleCat(chip.dataset.cat);
+});
+_catGrid.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        let chip = e.target.closest('[data-cat]');
+        if (chip) { e.preventDefault(); chip.click(); }
+    }
+});
 
 // Band grid keyboard
 document.getElementById('band-grid').addEventListener('keydown', e => {
