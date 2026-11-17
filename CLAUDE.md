@@ -16,7 +16,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
-| `dic/palavras.txt` | 145,744 Portuguese words, one per line (1.5 MB) |
+| `dic/palavras.txt` | Full dictionary: 145,744 Portuguese words, one per line (1.5 MB). **Not the app's default base any more** — `exp/` uses it only with `?dic=completo`; `som/` still uses it |
 | `dic/corpus-schemes.json` | 474 songs × deduplicated stanzas in compact `{a,t,g,s[]}` format (139 KB) |
 | `upload/letras_final.json` | 478 song lyrics with full text (`{artista, titulo, letra, genero, fonte}`) — lazy-loaded in-browser on first card click |
 | `som/` | **Som** — mobile-first "navegue semelhanças": one engine, four zoom levels (palavra `degustar`, fim `-bula` / início `ge-`, sílaba `ge`, som `t`). `engine.js` (G2P + weighted distances, dual-mode, testable in Node), `worker.js` (indexes `dic/palavras.txt` off the UI thread), `index.html` (UI). Loads `../phonetic-engine.js` |
@@ -24,7 +24,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `exp/v02.html` | Older standalone prototype ("Vocalis"), own inlined engine — historical, not wired to anything |
 | `exp/index.backup.html` | Pre-refactor snapshot of `exp/index.html` — historical |
 | `backup/` | Timestamped snapshots of `exp/` taken before risky engine changes |
-| `dic/k-palavras.txt` | Common-word list (~52k forms, inflections and proper names included) — loaded by `exp/index.html` as `PALAVRAS_COMUNS` for the frequency filter and result order. See *User input & result order* |
+| `dic/k-palavras.txt` | Common-word list (~52k lines: inflected forms, but also punctuation, names, acronyms). **The app's default dictionary** (`DIC_BASE = 'comum'`): `_listaBaseComum` keeps only lowercase, letters-only entries of 2+ chars → **31,113 words**. Also `PALAVRAS_COMUNS`. See *Dictionary base* |
 | `dic/lexico.txt`, `letras/001.txt`, `upload/001` | **Not used by anything.** `lexico.txt` is a byte-identical copy of `palavras.txt`; the other two are 1-byte placeholder files |
 
 ---
@@ -144,6 +144,24 @@ Known gaps, deliberately left alone:
 - **Accented diphthongs** — `tratarHiatosVogais` tests `/^(ai|au|ei|eu|iu|oi|ou|ui|ão|õe|ãe)$/`
   without the accented variants, so `troféu` splits as `tro-FÉ-u` (3 syllables
   instead of 2). Stress lands correctly; only the syllable count is wrong.
+
+---
+
+## Dictionary base (provisional)
+
+`exp/index.html` searches **`dic/k-palavras.txt`** by default (decision of 2026-11-17,
+"por enquanto"). `_listaBaseComum` drops punctuation/number lines and every entry that
+only appears capitalised — names, places, acronyms (`José`, `Curitiba`, `PMDB`); a
+capitalised word that also appears in lowercase survives through its lowercase form.
+Result: 31,113 words, ~18.5k of them inflected forms missing from `palavras.txt`
+(`vamos`, `alunos`, `espero`). Load ~1.1 s / ~50 MB heap vs ~2.6 s / ~160 MB.
+
+- Switch back for one visit: `exp/index.html?dic=completo`; for good: change `DIC_BASE`.
+- It is a news-text vocabulary: some typos (`desenvovimento`), Spanish/English words
+  (`del`, `cheated`) and brands come along.
+- With this base every word is `freq: 'comum'`, so the *Frequência* filter and the
+  common-first step of `_ordemResultado` have no effect (they still do with `?dic=completo`).
+- The song corpus and `build-corpus.js` don't use the dictionary; nothing to rebuild.
 
 ---
 

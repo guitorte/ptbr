@@ -2417,21 +2417,42 @@ const CAMPOS_MOLDE = ['rimaPerfeita','vogaisRima','espinhaVocal','onsetTonico','
 /* ═══════════════════════════════════════════════════════════════
    4. INDEXAÇÃO
 ═══════════════════════════════════════════════════════════════ */
+/* Base do dicionário (provisório): por padrão, a lista de palavras comuns
+   dic/k-palavras.txt, só as entradas em minúsculas e só com letras (~31 mil:
+   saem pontuação, números e nomes próprios/siglas, que só aparecem com
+   maiúscula). O dicionário completo dic/palavras.txt (145.744) continua no
+   repositório: abra a página com ?dic=completo, ou troque DIC_BASE abaixo. */
+const DIC_BASE = new URLSearchParams(location.search).get('dic') === 'completo' ? 'completo' : 'comum';
+function _listaBaseComum(texto) {
+    const vistas = new Set(), lista = [];
+    for (const bruto of texto.split(/\r?\n/)) {
+        const w = bruto.trim();
+        if (w.length < 2 || w !== w.toLowerCase() || !ENTRADA_OK.test(w)
+            || !/[a-zà-öø-ÿ]/.test(w) || vistas.has(w)) continue;
+        vistas.add(w); lista.push(w);
+    }
+    return lista;
+}
 async function indexarDicionario() {
     let st = document.getElementById('status-text');
-    st.textContent = 'Baixando palavras.txt…';
+    const arquivo = DIC_BASE === 'completo' ? 'palavras.txt' : 'k-palavras.txt';
+    st.textContent = `Baixando ${arquivo}…`;
     try {
-        // Lista de palavras comuns em paralelo; falhar aqui não impede o app
+        // Lista de palavras comuns (em paralelo, no modo completo); falhar aqui não impede o app
         const comuns = fetch('../dic/k-palavras.txt')
             .then(r => r.ok ? r.text() : '')
             .catch(() => '');
-        const resp = await fetch('../dic/palavras.txt');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        PALAVRAS_COMUNS = new Set((await comuns).split(/\r?\n/)
+        const resp = DIC_BASE === 'completo' ? await fetch('../dic/palavras.txt') : null;
+        if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const textoComuns = await comuns;
+        if (DIC_BASE === 'comum' && !textoComuns) throw new Error('k-palavras.txt indisponível');
+        PALAVRAS_COMUNS = new Set(textoComuns.split(/\r?\n/)
             .map(w => w.trim().toLowerCase()).filter(Boolean));
-        const lista = (await resp.text()).split(/\r?\n/)
-            .map(p => p.trim())
-            .filter(p => p.length > 1 && /[a-záàâãéêíóôõúü]/i.test(p));
+        const lista = DIC_BASE === 'completo'
+            ? (await resp.text()).split(/\r?\n/)
+                .map(p => p.trim())
+                .filter(p => p.length > 1 && /[a-záàâãéêíóôõúü]/i.test(p))
+            : _listaBaseComum(textoComuns);
         st.textContent = `Indexando ${lista.length.toLocaleString('pt-BR')} palavras…`;
         setTimeout(() => {
             dicionario = lista.map(p => perfilFonetico(p)).filter(Boolean);
@@ -2451,9 +2472,9 @@ async function indexarDicionario() {
             document.getElementById('btn-favs').classList.toggle('active', favoritos.size > 0);
         }, 30);
     } catch(e) {
-        st.textContent = '⚠ Erro ao carregar palavras.txt';
+        st.textContent = `⚠ Erro ao carregar ${arquivo}`;
         document.getElementById('empty-state').innerHTML =
-            'Não foi possível carregar <b>palavras.txt</b>.<br>Abra via servidor local.';
+            `Não foi possível carregar <b>${arquivo}</b>.<br>Abra via servidor local.`;
         console.error(e);
     }
 }
