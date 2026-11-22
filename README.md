@@ -28,9 +28,13 @@ ptbr/
 ├── phonetic-engine.js          # IPA consonant distance engine (Chomsky & Halle features)
 ├── build-corpus.js             # CLI: processes letras_final.json → dic/corpus-schemes.json
 ├── rhyme-extract.js            # CLI: extracts rhyme schemes from individual songs
+├── build-classes.js            # CLI: PortiLexicon-UD → dic/classes-*.txt (word classes)
 ├── dic/
 │   ├── k-palavras.txt          # Common-word list — the app's default dictionary (31,113 words after cleaning)
 │   ├── palavras.txt            # Full dictionary, 145,744 words (exp/index.html?dic=completo, and som/)
+│   ├── classes-comum.txt       # Word classes for the default dictionary (from PortiLexicon-UD)
+│   ├── classes-completo.txt    # Word classes for the rest of palavras.txt (loaded only with ?dic=completo)
+│   ├── PORTILEXICON-LICENSE    # MIT licence of PortiLexicon-UD
 │   └── corpus-schemes.json     # 474 songs, 3,254 deduplicated stanzas, compact {a,t,g,s[]} (139 KB)
 ├── upload/
 │   └── letras_final.json       # 478 song lyrics with full text (MPB, Pagode, Sertanejo, Pop/Rock, Rap…)
@@ -211,7 +215,7 @@ Filters work on their own (no anchor word) or on top of any search mode:
 - Vowel pattern, vowel spine
 - Consonant sequence (in order) and **consonants in any order** (`td` → dote, tudo, data; with its own tolerance: exact / voicing / liquids & nasals)
 - Coda consonants (with phonetic feature filters)
-- Word class (noun, adjective, verb, adverb — suffix heuristics)
+- Word class (noun, adjective, verb, adverb) — from the PortiLexicon-UD lexicon; a word that can belong to several classes (`canto`: noun and verb form) shows up under each of them
 - Frequency tier (comum / média / rara — estimated from length and suffixes)
 
 ---
@@ -287,7 +291,7 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 ## Known Limitations
 
 - Syllabification is rule-based and may fail on loanwords, proper nouns, or unusual clusters.
-- Word class detection uses suffix heuristics — not morphological analysis.
+- Word classes come from PortiLexicon-UD for 89% of the default dictionary (41% of the rest of `palavras.txt`); words it doesn't know — verbs with attached pronouns (`aventuram-se`), names, typos, rare technical words — fall back to a guess from the word ending.
 - Neither word list carries frequency counts. With the default base every word counts as common; with `?dic=completo`, words on the common-word list are "comum" and the rest are estimated from length and suffixes.
 - The default base comes from news text: it includes some typos and a few foreign words and brands.
 - Corpus stanza matching uses rimaPerfeita string equality — stanzas with identical rhyme arrays are deduplicated per song.
@@ -315,3 +319,4 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 
 - **IPA Feature Geometry:** Chomsky & Halle (1968), *The Sound Pattern of English*
 - **Portuguese Phonology:** Câmara Jr. (1970), *Estrutura da Língua Portuguesa*
+- **Word classes:** Lopes, L., Duran, M., Fernandes, P. & Pardo, T. (2022). *PortiLexicon-UD: a Portuguese lexical resource according to Universal Dependencies model.* LREC 2022, pp. 6635–6643. Data: [github.com/LuceleneL/portilexicon-ud](https://github.com/LuceleneL/portilexicon-ud), MIT licence (`dic/PORTILEXICON-LICENSE`).

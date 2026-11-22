@@ -16,6 +16,8 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
+| `build-classes.js` | CLI: `node build-classes.js <PortiLexicon-UD clone>` → `dic/classes-comum.txt` + `dic/classes-completo.txt`. Re-run after changing either word list |
+| `dic/classes-comum.txt`, `dic/classes-completo.txt` | Word classes from PortiLexicon-UD (MIT, `dic/PORTILEXICON-LICENSE`): one line per class combination, `<codes>\t<word> <word> …`, codes `s a v d o`. `-comum` = default base (27,721 of 31,113 words); `-completo` = rest of `palavras.txt` (55,168 of 133,072), loaded only with `?dic=completo` |
 | `dic/palavras.txt` | Full dictionary: 145,744 Portuguese words, one per line (1.5 MB). **Not the app's default base any more** — `exp/` uses it only with `?dic=completo`; `som/` still uses it |
 | `dic/corpus-schemes.json` | 474 songs × deduplicated stanzas in compact `{a,t,g,s[]}` format (139 KB) |
 | `upload/letras_final.json` | 478 song lyrics with full text (`{artista, titulo, letra, genero, fonte}`) — lazy-loaded in-browser on first card click |
@@ -162,6 +164,33 @@ Result: 31,113 words, ~18.5k of them inflected forms missing from `palavras.txt`
 - With this base every word is `freq: 'comum'`, so the *Frequência* filter and the
   common-first step of `_ordemResultado` have no effect (they still do with `?dic=completo`).
 - The song corpus and `build-corpus.js` don't use the dictionary; nothing to rebuild.
+
+---
+
+## Word classes (`classe` / `classes`)
+
+Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
+`build-classes.js` so the app never downloads its ~100 MB of data.
+
+- Every profile has `classes` (all classes the word can have) and `classe` (the
+  main one, used by the lock pill). `calcClasses(pL)` reads `CLASSES_LEX`
+  (filled by `_carregarClasses` before the dictionary is indexed); a word the
+  lexicon doesn't know gets `calcClasse`'s ending-based guess for both.
+- **The filter matches any of the word's classes**: `canto` (noun + verb form)
+  shows up under Subst. and under Verbo; "≠ Verbo" removes every word that *can*
+  be a verb. These multi-class words are real homographs (`cerco`, `banca`,
+  `aparelho` are also verb forms), not noise.
+- Main class: the ending-based guess if the lexicon confirms it, else the first
+  of outra › subst. › adj. › verbo › adv.
+- Build-time adjustments: ADV readings tagged `Abbr=Yes` (an adjective standing
+  for an `-mente` adverb, `abananada`) are dropped when the word has another
+  class; contractions (`do`, `pelo`, `num`…), which UD splits, get `o`.
+- Coverage: 89.1% of the default base; 41.5% of the rest of `palavras.txt`.
+  The old guess classified only 25% of the default base, with errors such as
+  `mulher`/`lugar` → verb, `história` → adj, `semente` → adv.
+- Only words of the two lists are in the files: an anchor typed from outside them
+  (`cantado` with the default base) still gets the guess.
+- If the class files fail to load, everything falls back to the guess.
 
 ---
 

@@ -1541,6 +1541,34 @@ function calcClasse(p) {
     return 'outro';
 }
 
+/* Classes gramaticais reais, do PortiLexicon-UD (MIT, © 2023 Lucelene Lopes),
+   pré-processadas por build-classes.js em dic/classes-comum.txt (+ classes-
+   completo.txt com ?dic=completo). Uma palavra pode ter várias: "canto" é
+   substantivo e forma verbal, e aparece nos dois filtros. Palavra que o léxico
+   não conhece (~11% da base padrão: "aventuram-se", nomes, erros de digitação)
+   fica com o palpite pela terminação, calcClasse. */
+let CLASSES_LEX = new Map();                       // palavra → códigos ('sv', 'a'…)
+const CLASSE_COD = { s:'sub', a:'adj', v:'vrb', d:'adv', o:'outro' };
+function _carregarClasses(texto) {
+    for (const linha of texto.split(/\r?\n/)) {
+        if (!linha || linha[0] === '#') continue;
+        const tab = linha.indexOf('\t');
+        const cod = linha.slice(0, tab);
+        for (const w of linha.slice(tab + 1).split(' ')) if (w) CLASSES_LEX.set(w, cod);
+    }
+}
+// { classe: a principal (pílula e trava do molde), classes: todas }
+function calcClasses(pL) {
+    const palpite = calcClasse(pL);
+    const cod = CLASSES_LEX.get(pL);
+    if (!cod) return { classe: palpite, classes: [palpite] };
+    const classes = [...cod].map(c => CLASSE_COD[c]);
+    // principal: o palpite pela terminação, se o léxico confirmar; senão a
+    // primeira na ordem outra › subst. › adj. › verbo › adv. (o arquivo já vem nela)
+    const classe = (palpite !== 'outro' && classes.includes(palpite)) ? palpite : classes[0];
+    return { classe, classes };
+}
+
 function perfilFonetico(palavra) {
     let pL = palavra.toLowerCase().trim();
     if (!pL || !/[a-záàâãéêíóôõúü]/i.test(pL)) return null;
@@ -1567,7 +1595,7 @@ function perfilFonetico(palavra) {
         tracosCoda: calcTracosCoda(sil, ti),
         familiaCluster: calcFam(onset),
         coda: calcCoda(pL),
-        classe: calcClasse(pL),
+        ...calcClasses(pL),
         freq: calcFreq(pL, numSil),
     };
 }
@@ -2461,8 +2489,15 @@ async function indexarDicionario() {
         const comuns = fetch('../dic/k-palavras.txt')
             .then(r => r.ok ? r.text() : '')
             .catch(() => '');
+        // Classes gramaticais (PortiLexicon-UD); se faltarem, o app usa o palpite pela terminação
+        const pegaTexto = url => fetch(url).then(r => r.ok ? r.text() : '').catch(() => '');
+        const classes = Promise.all([
+            pegaTexto('../dic/classes-comum.txt'),
+            DIC_BASE === 'completo' ? pegaTexto('../dic/classes-completo.txt') : '',
+        ]);
         const resp = DIC_BASE === 'completo' ? await fetch('../dic/palavras.txt') : null;
         if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
+        for (const texto of await classes) _carregarClasses(texto);
         const textoComuns = await comuns;
         if (DIC_BASE === 'comum' && !textoComuns) throw new Error('k-palavras.txt indisponível');
         PALAVRAS_COMUNS = new Set(textoComuns.split(/\r?\n/)
@@ -2532,7 +2567,8 @@ function processarBusca() {
         for (let [k, v] of Object.entries(FILTROS)) {
             if (v === null) continue;
             if (k === 'numSilabas') continue; // handled separately with range mode
-            let match = item[k] === v;
+            // classe: a palavra entra se PODE ser daquela classe (canto → subst. e verbo)
+            let match = k === 'classe' ? item.classes.includes(v) : item[k] === v;
             if (FILTROS_NEG[k]) { if (match) return false; }
             else                 { if (!match) return false; }
         }
