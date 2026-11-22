@@ -702,6 +702,14 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   transition: transform 0.1s, background 0.1s;
 }
 .tol-btn:active { transform: scale(0.88); background: var(--border); }
+/* Largura fixa do valor, do tamanho do rótulo mais longo de cada stepper:
+   o + não anda quando o valor muda ("Exato" → "Líquidas/Nasais") */
+#tol-ar-val-sb, #tol-ar-val-sh { width: 2.4em; flex: none; }
+#tol-val-sb, #tol-val-sh, #tol-livre-val-sb, #tol-livre-val-sh { width: 8.4em; flex: none; }
+/* Folha de filtros (celular): alvos de toque de 44px, como no número de sílabas */
+#filter-sheet .tol-row { margin-top: 10px; gap: 8px; }
+#filter-sheet .tol-btn { width: 44px; height: 44px; border-radius: 12px; font-size: 22px; }
+#filter-sheet .tol-val { font-size: 13px; }
 
 /* ═══ LABEL ROW + NOT BUTTON ════════════════════════════════ */
 .sb-label-row, .sh-label-row {
@@ -953,7 +961,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       <div class="tol-row">
         <span class="tol-label">Tolerância</span>
         <button class="tol-btn" onclick="stepTolerancia(-1)" aria-label="Menos tolerância">−</button>
-        <span class="tol-val" id="tol-val-sb">0</span>
+        <span class="tol-val" id="tol-val-sb">Exato</span>
         <button class="tol-btn" onclick="stepTolerancia(1)" aria-label="Mais tolerância">+</button>
       </div>
     </div>
@@ -1140,9 +1148,9 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       </div>
       <div class="tol-row">
         <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolAoRedor(-1)">−</button>
-        <span class="tol-val" id="tol-ar-val-sh">0</span>
-        <button class="tol-btn" onclick="stepTolAoRedor(1)">+</button>
+        <button class="tol-btn" onclick="stepTolAoRedor(-1)" aria-label="Menos tolerância (letras ao redor da tônica)">−</button>
+        <span class="tol-val" id="tol-ar-val-sh" aria-live="polite">0</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(1)" aria-label="Mais tolerância (letras ao redor da tônica)">+</button>
       </div>
     </div>
     <div class="sh-section">
@@ -1220,9 +1228,9 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       <p class="sb-hint">Consoantes da palavra em ordem. Ex: "mtr" → motor, meter</p>
       <div class="tol-row">
         <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolerancia(-1)">−</button>
-        <span class="tol-val" id="tol-val-sh">0</span>
-        <button class="tol-btn" onclick="stepTolerancia(1)">+</button>
+        <button class="tol-btn" onclick="stepTolerancia(-1)" aria-label="Menos tolerância (sequência de consoantes)">−</button>
+        <span class="tol-val" id="tol-val-sh" aria-live="polite">Exato</span>
+        <button class="tol-btn" onclick="stepTolerancia(1)" aria-label="Mais tolerância (sequência de consoantes)">+</button>
       </div>
     </div>
     <div class="sh-section">
@@ -1234,9 +1242,9 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       <p class="sb-hint">Todas presentes, em qualquer ordem e posição. Ex: "td" → dote, tudo, data. Vale letra ou som: "s" acha casa e cidade</p>
       <div class="tol-row">
         <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolLivre(-1)">−</button>
-        <span class="tol-val" id="tol-livre-val-sh">Exato</span>
-        <button class="tol-btn" onclick="stepTolLivre(1)">+</button>
+        <button class="tol-btn" onclick="stepTolLivre(-1)" aria-label="Menos tolerância (consoantes em qualquer ordem)">−</button>
+        <span class="tol-val" id="tol-livre-val-sh" aria-live="polite">Exato</span>
+        <button class="tol-btn" onclick="stepTolLivre(1)" aria-label="Mais tolerância (consoantes em qualquer ordem)">+</button>
       </div>
     </div>
     <div class="sh-section">
