@@ -271,7 +271,13 @@ body {
   transition: transform 0.1s, background 0.1s;
 }
 .step-btn:active { transform: scale(0.88); background: var(--border); }
-.step-val { font-size: 15px; font-weight: 800; flex: 1; text-align: center; }
+.step-val { font-size: 15px; font-weight: 800; text-align: center;
+            width: 4.8em; flex: none; }   /* largura fixa: "Qualquer" ↔ "2" não move os botões */
+/* Número de sílabas: = ≤ ≥ e o − valor + numa linha só, com − e + juntos
+   (antes o valor esticava e jogava o + para a borda oposta da tela) */
+.sil-linha { display: flex; align-items: center; justify-content: space-between;
+             gap: 10px; flex-wrap: wrap; }
+.sil-linha .sil-range-row { margin-bottom: 0; }
 /* Radio row */
 .radio-row { display: flex; gap: 5px; flex-wrap: wrap; }
 .r-btn {
@@ -648,6 +654,9 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   padding: 0 14px 16px;
 }
 .sh-section { margin-bottom: 20px; }
+/* Folha de filtros (celular): alvos de toque de 44px no número de sílabas */
+#filter-sheet .sil-range-row .r-btn { min-width: 44px; height: 44px; padding: 0 8px; font-size: 16px; }
+#filter-sheet .step-btn { width: 44px; height: 44px; border-radius: 12px; font-size: 22px; }
 .sh-label {
   display: block; font-size: 10px; font-weight: 700;
   letter-spacing: 0.7px; text-transform: uppercase;
@@ -782,15 +791,17 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   <aside id="sidebar" aria-label="Filtros">
     <div class="sb-section">
       <span class="sb-label">Número de sílabas</span>
-      <div class="sil-range-row">
-        <button class="r-btn sel" data-silmode="eq"  onclick="setSilMode('eq')"> = </button>
-        <button class="r-btn"     data-silmode="lte" onclick="setSilMode('lte')">≤</button>
-        <button class="r-btn"     data-silmode="gte" onclick="setSilMode('gte')">≥</button>
-      </div>
-      <div class="stepper">
-        <button class="step-btn" onclick="stepSilabas(-1)" aria-label="Menos sílabas">−</button>
-        <span class="step-val" id="step-val">Qualquer</span>
-        <button class="step-btn" onclick="stepSilabas(1)" aria-label="Mais sílabas">+</button>
+      <div class="sil-linha">
+        <div class="sil-range-row">
+          <button class="r-btn sel" data-silmode="eq"  onclick="setSilMode('eq')"> = </button>
+          <button class="r-btn"     data-silmode="lte" onclick="setSilMode('lte')">≤</button>
+          <button class="r-btn"     data-silmode="gte" onclick="setSilMode('gte')">≥</button>
+        </div>
+        <div class="stepper">
+          <button class="step-btn" onclick="stepSilabas(-1)" aria-label="Menos sílabas">−</button>
+          <span class="step-val" id="step-val" aria-live="polite">Qualquer</span>
+          <button class="step-btn" onclick="stepSilabas(1)" aria-label="Mais sílabas">+</button>
+        </div>
       </div>
     </div>
     <div class="sb-section">
@@ -1048,15 +1059,17 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   <div class="sheet-body">
     <div class="sh-section">
       <span class="sh-label">Número de sílabas</span>
-      <div class="sil-range-row">
-        <button class="r-btn sel" data-silmode="eq"  onclick="setSilMode('eq')"> = </button>
-        <button class="r-btn"     data-silmode="lte" onclick="setSilMode('lte')">≤</button>
-        <button class="r-btn"     data-silmode="gte" onclick="setSilMode('gte')">≥</button>
-      </div>
-      <div class="stepper">
-        <button class="step-btn" onclick="stepSilabas(-1)">−</button>
-        <span class="step-val" id="step-val-sh">Qualquer</span>
-        <button class="step-btn" onclick="stepSilabas(1)">+</button>
+      <div class="sil-linha">
+        <div class="sil-range-row">
+          <button class="r-btn sel" data-silmode="eq"  onclick="setSilMode('eq')"> = </button>
+          <button class="r-btn"     data-silmode="lte" onclick="setSilMode('lte')">≤</button>
+          <button class="r-btn"     data-silmode="gte" onclick="setSilMode('gte')">≥</button>
+        </div>
+        <div class="stepper">
+          <button class="step-btn" onclick="stepSilabas(-1)" aria-label="Menos sílabas">−</button>
+          <span class="step-val" id="step-val-sh" aria-live="polite">Qualquer</span>
+          <button class="step-btn" onclick="stepSilabas(1)" aria-label="Mais sílabas">+</button>
+        </div>
       </div>
     </div>
     <div class="sh-section">
