@@ -2644,12 +2644,15 @@ const CAMPOS_MOLDE = ['rimaPerfeita','vogaisRima','espinhaVocal','onsetTonico','
    maiúscula). O dicionário completo dic/palavras.txt (145.744) continua no
    repositório: abra a página com ?dic=completo, ou troque DIC_BASE abaixo. */
 const DIC_BASE = new URLSearchParams(location.search).get('dic') === 'completo' ? 'completo' : 'comum';
+/* Restos de recorte do texto de notícias: hífen/apóstrofo na ponta ou dobrado
+   (--quando, -quando, ex-, pré-, amiga--morreu) e pronome enclítico que perdeu o verbo (a-nos). */
+const LIXO_BASE = /^['-]|['-]$|--|^[a-zà-öø-ÿ]-(?:[oa]s?|l[oa]s?|n[oa]s?|vos|me|te|se|lhes?)$/;
 function _listaBaseComum(texto) {
     const vistas = new Set(), lista = [];
     for (const bruto of texto.split(/\r?\n/)) {
         const w = bruto.trim();
         if (w.length < 2 || w !== w.toLowerCase() || !ENTRADA_OK.test(w)
-            || !/[a-zà-öø-ÿ]/.test(w) || vistas.has(w)) continue;
+            || !/[a-zà-öø-ÿ]/.test(w) || LIXO_BASE.test(w) || vistas.has(w)) continue;
         vistas.add(w); lista.push(w);
     }
     return lista;

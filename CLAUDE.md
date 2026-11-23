@@ -17,7 +17,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
 | `build-classes.js` | CLI: `node build-classes.js <PortiLexicon-UD clone>` → `dic/classes-comum.txt` + `dic/classes-completo.txt`. Re-run after changing either word list |
-| `dic/classes-comum.txt`, `dic/classes-completo.txt` | Word classes from PortiLexicon-UD (MIT, `dic/PORTILEXICON-LICENSE`): one line per class combination, `<codes>\t<word> <word> …`, codes `s a v d o`. `-comum` = default base (27,721 of 31,113 words); `-completo` = rest of `palavras.txt` (55,168 of 133,072), loaded only with `?dic=completo` |
+| `dic/classes-comum.txt`, `dic/classes-completo.txt` | Word classes from PortiLexicon-UD (MIT, `dic/PORTILEXICON-LICENSE`): one line per class combination, `<codes>\t<word> <word> …`, codes `s a v d o`. `-comum` = default base (27,721 of 31,074 words); `-completo` = rest of `palavras.txt` (55,168 of 133,072), loaded only with `?dic=completo` |
 | `build-sentidos.js` | CLI: `node build-sentidos.js` → `dic/sentidos.txt` from `dic/substantivos-sentidos.csv`. Re-run after editing the CSV |
 | `dic/substantivos-sentidos.csv` | **The user's own semantic classification** of the nouns (`Palavra, Seção, Categoria, Observação`; 13,009 rows). Source of truth for the meaning filter — edit this, not `sentidos.txt`. Section 5 ("Ruídos": 1,636 adjectives/participles, 246 verbs/pronouns, 78 typos) is ignored by the build |
 | `dic/sentidos.txt` | Generated: one line per category, `<code>\t<word> <word> …` (codes `pes lug obj ser aca con doe tem fic ins rel`); 10,940 words, 105 KB |
@@ -29,7 +29,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `exp/v02.html` | Older standalone prototype ("Vocalis"), own inlined engine — historical, not wired to anything |
 | `exp/index.backup.html` | Pre-refactor snapshot of `exp/index.html` — historical |
 | `backup/` | Timestamped snapshots of `exp/` taken before risky engine changes |
-| `dic/k-palavras.txt` | Common-word list (~52k lines: inflected forms, but also punctuation, names, acronyms). **The app's default dictionary** (`DIC_BASE = 'comum'`): `_listaBaseComum` keeps only lowercase, letters-only entries of 2+ chars → **31,113 words**. Also `PALAVRAS_COMUNS`. See *Dictionary base* |
+| `dic/k-palavras.txt` | Common-word list (~52k lines: inflected forms, but also punctuation, names, acronyms). **The app's default dictionary** (`DIC_BASE = 'comum'`): `_listaBaseComum` keeps only lowercase, letters-only entries of 2+ chars, minus clipping debris → **31,074 words**. Also `PALAVRAS_COMUNS`. See *Dictionary base* |
 | `dic/lexico.txt`, `letras/001.txt`, `upload/001` | **Not used by anything.** `lexico.txt` is a byte-identical copy of `palavras.txt`; the other two are 1-byte placeholder files |
 
 ---
@@ -158,7 +158,11 @@ Known gaps, deliberately left alone:
 "por enquanto"). `_listaBaseComum` drops punctuation/number lines and every entry that
 only appears capitalised — names, places, acronyms (`José`, `Curitiba`, `PMDB`); a
 capitalised word that also appears in lowercase survives through its lowercase form.
-Result: 31,113 words, ~18.5k of them inflected forms missing from `palavras.txt`
+It also drops clipping debris from the news text (`LIXO_BASE`, 39 entries, 2026-11-23):
+hyphen or apostrophe at either end or doubled (`--quando`, `-quando`, `ex-`, `pré-`,
+`amiga--morreu`) and an enclitic pronoun that lost its verb (`a-nos`). Real hyphenated
+words stay (`beija-flor`, `e-mail`, `levou-o`). `build-classes.js` applies the same rule.
+Result: 31,074 words, ~18.5k of them inflected forms missing from `palavras.txt`
 (`vamos`, `alunos`, `espero`). Load ~1.1 s / ~50 MB heap vs ~2.6 s / ~160 MB.
 
 - Switch back for one visit: `exp/index.html?dic=completo`; for good: change `DIC_BASE`.
@@ -188,7 +192,7 @@ Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
 - Build-time adjustments: ADV readings tagged `Abbr=Yes` (an adjective standing
   for an `-mente` adverb, `abananada`) are dropped when the word has another
   class; contractions (`do`, `pelo`, `num`…), which UD splits, get `o`.
-- Coverage: 89.1% of the default base; 41.5% of the rest of `palavras.txt`.
+- Coverage: 89.2% of the default base; 41.5% of the rest of `palavras.txt`.
   The old guess classified only 25% of the default base, with errors such as
   `mulher`/`lugar` → verb, `história` → adj, `semente` → adv.
 - Only words of the two lists are in the files: an anchor typed from outside them
@@ -249,7 +253,7 @@ compiled by `build-sentidos.js` into `dic/sentidos.txt`, loaded into `SENTIDOS_L
   only "Doenças" lists all 123 disease nouns.
 - Not stored in the URL hash (like the other typed/multi-select filters).
 - If `sentidos.txt` fails to load, chips show 0 and the app works normally.
-- Coverage: 10,929 of the 31,113 default-base words; nothing for `?dic=completo`
+- Coverage: 10,929 of the 31,074 default-base words; nothing for `?dic=completo`
   words outside it.
 
 ---

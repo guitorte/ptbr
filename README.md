@@ -31,7 +31,7 @@ ptbr/
 ├── build-classes.js            # CLI: PortiLexicon-UD → dic/classes-*.txt (word classes)
 ├── build-sentidos.js           # CLI: dic/substantivos-sentidos.csv → dic/sentidos.txt (meanings)
 ├── dic/
-│   ├── k-palavras.txt          # Common-word list — the app's default dictionary (31,113 words after cleaning)
+│   ├── k-palavras.txt          # Common-word list — the app's default dictionary (31,074 words after cleaning)
 │   ├── palavras.txt            # Full dictionary, 145,744 words (exp/index.html?dic=completo, and som/)
 │   ├── classes-comum.txt       # Word classes for the default dictionary (from PortiLexicon-UD)
 │   ├── classes-completo.txt    # Word classes for the rest of palavras.txt (loaded only with ?dic=completo)
@@ -61,7 +61,7 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 | **phonetic-engine.js** | Phonetic distance library | IPA consonant feature table (Chomsky & Halle 1968). Loaded in the browser by `exp/` and `som/`; the Node CLIs do **not** use it. |
 | **build-corpus.js** | Corpus builder CLI | Reads `upload/letras_final.json`, extracts rhyme schemes, deduplicates stanzas, outputs compact index to `dic/corpus-schemes.json` |
 | **rhyme-extract.js** | Song analyzer CLI | Extracts rhyme schemes from individual songs. Flags: `--genre`, `--artist`, `--song`, `--index`, `--output` |
-| **dic/k-palavras.txt** | Default dictionary | Common-word list. The app keeps only lowercase, letters-only entries (31,113 words), dropping punctuation, names and acronyms. |
+| **dic/k-palavras.txt** | Default dictionary | Common-word list. The app keeps only lowercase, letters-only entries (31,074 words), dropping punctuation, names and acronyms. |
 | **dic/palavras.txt** | Full dictionary | 145,744 Portuguese words. Used by `exp/` only with `?dic=completo`, and by `som/`. |
 | **dic/corpus-schemes.json** | Corpus index | 3,254 deduplicated stanzas from 474 songs in compact format: `{a: artist, t: title, g: genre, s: [...]}` |
 | **upload/letras_final.json** | Song lyrics database | 478 songs with full text. Lazy-loaded in-browser on first card click. |
@@ -115,7 +115,7 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 The selector under the search box switches between three ways of ranking the dictionary. All filters work in every mode.
 
 ### Rima (rhyme)
-Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the 31,113-word common-word dictionary (add `?dic=completo` to the address for the full 145,744 words), all built around the stressed syllable.
+Type a word → ranked list of rhymes, near-rhymes, assonances, and rhythmic matches from the 31,074-word common-word dictionary (add `?dic=completo` to the address for the full 145,744 words), all built around the stressed syllable.
 
 ### Consoantes (consonants, stress ignored)
 Compares only the word's consonant sounds: `metade` (m·t·d) → `método`, `metido`, `medida`. Similar sounds count as close (t/d, p/b). Typing only consonants searches that skeleton directly: `dt` → `dote`, `dito`. A second row of chips groups words with **exactly the same consonants in any order** (`mesmas m·t·d`) or with **one of them missing** (`sem m` → `tudo`, `dote`).
@@ -312,7 +312,7 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 
 ## Performance Notes
 
-- **Dictionary load:** 31,113 words (about 1 s, ~50 MB), each fully analysed in memory on every page load; the full 145,744-word dictionary takes about 2.6 s and ~160 MB.
+- **Dictionary load:** 31,074 words (about 1 s, ~50 MB), each fully analysed in memory on every page load; the full 145,744-word dictionary takes about 2.6 s and ~160 MB.
 - **Corpus index:** 139 KB, loaded on first use of corpus mode.
 - **Lyrics lazy-loading:** full song text is fetched only when a corpus card is opened.
 - **Scoring:** every dictionary word is scored in memory per search, on the main thread — roughly 0.1–0.3 s per search in Consoantes/Vogais mode. (`som/` does its indexing in a Web Worker.)
