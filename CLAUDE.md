@@ -199,8 +199,8 @@ Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
 
 ## Meaning filter (`sentidos`)
 
-Filter section **Sentido (substantivos)**, in the sidebar and the phone sheet, right after
-*Classe gramatical*. Data: the user's classification in `dic/substantivos-sentidos.csv`,
+Filter section **Sentido (substantivos)**, in the sidebar and the phone sheet, second from
+the top — right after *Número de sílabas* (moved up at the user's request, 2026-11-23). Data: the user's classification in `dic/substantivos-sentidos.csv`,
 compiled by `build-sentidos.js` into `dic/sentidos.txt`, loaded into `SENTIDOS_LEX`.
 
 - 11 categories in 3 rows (`SENTIDOS`): **Concretos** (Pessoas, Lugares, Objetos e
