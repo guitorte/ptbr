@@ -51,7 +51,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `fecharLetra()` | Returns to corpus view, restores scroll position |
 | `toggleCorpusMode()` | Switches between rhyme-finder and ESQ corpus views |
 | `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, l, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), base letter of each consonant (`casa` → s `z` / l `s`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
-| `consQualquerOrdem(W, Q, tol)` | Filter *Consoantes em qualquer ordem* (`FILTROS_CONTEM.consLivre` / `toleranciaLivre`): every consonant of `Q` needs its own partner in `W` (bipartite matching, so `tt` needs two t's), any order/position. A pair matches by sound **or** letter (`s` → casa, cidade; `g` → gato, gente). Tol 1 = voicing pairs, tol 2 = + m/n, nh/n, liquids (r/l, lh/l) |
+| `consQualquerOrdem(W, Q, tol)` | Filter *Consoantes em qualquer ordem* (`FILTROS_CONTEM.consLivre` / `toleranciaLivre`): every consonant of `Q` needs its own partner in `W` (bipartite matching, so `tt` needs two t's), any order/position. A pair matches by sound **or** letter (`s` → casa, cidade; `g` → gato, gente). Tol 1 = voicing pairs, tol 2 = + m/n, nh/n, liquids (r/l, lh/l). This is the **Contém** mode; `consLivreModo` adds the other two (see *Text filters*) |
 | `consCategoria(W, A)` | Skeleton category (works on `esq` and `esqV` alike); in CONS mode: consonant category for the second chip row (`#cat-grid`, filter `FILTRO_CAT`, result field `catCons`): `'mesmas'` = exactly the anchor's consonants in any order (`metade` → método, ditame); a symbol `X` = exactly the anchor's minus `X` ("sem m" → tudo, dote, adote). Strict: no leftover consonant, not even a coda nasal, so substitutions (`batido`, `entada`) stay in the bands. Category words bypass `CONS_PISO` |
 | `calcScoreCons(item, alvo)` | CONS-mode score: weighted edit distance between skeletons (`distEsq`/`simEsq`, substitution cost from `phonetic-engine.js`, edge gaps ×0.6), mapped onto the same 160/130/100/60 bands; vowel sequence is only a ≤15-pt tiebreak |
 | `calcEsqVogal(silabas)` | Vowel skeleton, same shape as `calcEsqueleto` (`{s, l, g, gs, leg}`): one symbol per vowel sound — `a e i o u`, nasals `ã ẽ ĩ õ ũ` (tilde or coda m/n: `gente` → `ẽ·e`), diphthong glides `ɪ ʊ` with a cheaper gap (`peito` → `eⁱ·o`, `mão` → `ãᵘ`, `quase` → `ᵘa·e`); silent `u` of que/gui dropped; é = ê = e. Uses the syllable split only to tell diphthong from hiatus — stress is not consulted. Stored as `esqV` on every profile |
@@ -197,10 +197,41 @@ Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
 
 ---
 
+## Filter order
+
+Both panels (sidebar and phone sheet) list the filters in the user's order of use
+(2026-11-23): **Classe gramatical, Sentido, Número de sílabas, Início exato, Terminação
+exata, Consoantes em qualquer ordem, Vogais em qualquer ordem, Consoantes ao redor da
+tônica, Vogais ao redor da tônica, Sem estas letras ou sílabas** — then an
+**Outros filtros** divider (`.filtros-divisor`) and everything else. Keep the two panels in
+the same order; each section is a self-contained `<div class="sb-section">` /
+`<div class="sh-section">` block, so reordering means moving whole blocks.
+
+## Text filters
+
+- **Wildcards** — `Início exato` and `Terminação exata` accept `*` = exactly one letter
+  (`i*e` → lide, vire; `i**e` → disse, pilhe). `_regexGrafia(itens, âncora, normaliza)`
+  escapes everything else and anchors with `^`/`$`; comma still means OR.
+- **Sem estas letras ou sílabas** (`FILTROS_CONTEM.excluir`) — comma or space separated;
+  drops a word containing any item. Accent-insensitive through `_normParaContem` (`i`
+  drops `saída`; `ç` stays distinct), and `*` works here too.
+- **Vogais em qualquer ordem** (`FILTROS_CONTEM.vogLivre`) — `o a`, `oa` or a whole word.
+  Vowels come from `espinhaVocal` (silent `u` of que/gui dropped, accents and tilde folded
+  to the base vowel; glides count as vowels, so `pai` is a·i).
+- **Modes** for both any-order filters (`MODO_LIVRE`, chips `data-modo-livre="cons:exatas"`…,
+  `setModoLivre`): **Exatas** = only the listed sounds, once each (`o a` → carro, corra);
+  **Com repetição** = only the listed sounds, each at least once, repeats allowed
+  (carona, corado); **Contém** = the listed sounds plus anything else (the pre-2026-11-23
+  consonant behaviour). Default is Exatas for both; reset restores it.
+  `consLivreModo(W, Q, tol, modo)` keeps sound-or-letter matching and tolerance in every mode.
+- None of these are stored in the URL hash (same as the other typed filters).
+
+---
+
 ## Meaning filter (`sentidos`)
 
-Filter section **Sentido (substantivos)**, in the sidebar and the phone sheet, right after
-*Classe gramatical*. Data: the user's classification in `dic/substantivos-sentidos.csv`,
+Filter section **Sentido (substantivos)**, in the sidebar and the phone sheet, second from
+the top — right after *Classe gramatical* (see *Filter order*). Data: the user's classification in `dic/substantivos-sentidos.csv`,
 compiled by `build-sentidos.js` into `dic/sentidos.txt`, loaded into `SENTIDOS_LEX`.
 
 - 11 categories in 3 rows (`SENTIDOS`): **Concretos** (Pessoas, Lugares, Objetos e
@@ -274,7 +305,8 @@ These bands and weights are Rima mode only; CONS and VOG map their own similarit
 | `resultadosFiltrados` | Current filtered result set |
 | `FILTROS` | Object of locked filter values (exact match) |
 | `FILTROS_NEG` | Negated filter flags |
-| `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields) |
+| `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields; `consLivre`, `vogLivre`, `excluir`) |
+| `MODO_LIVRE` | `{cons, vog}` — `'exatas'` \| `'repete'` \| `'contem'` for the two any-order filters |
 | `modoBusca` | `'rima'` \| `'cons'` \| `'vog'` — which engine ranks the results |
 | `FILTRO_CAT` | Selected category chips in CONS/VOG mode (`'mesmas'` and/or missing-sound symbols) |
 | `FILTRO_SENTIDOS` | Selected meaning categories (Set of `pes`, `lug`…; empty = any) |

@@ -100,7 +100,8 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 | `resultadosFiltrados` | Array | Current filtered/scored result set |
 | `FILTROS` | Object | Locked filter values (exact match)—keys `numSilabas`, `acentuacao`, `vogalTonica`, `onsetTonico`, `familiaCluster`, `rimaPerfeita`, `vogaisRima`, `espinhaVocal`, `coda`, `classe`, `freq` |
 | `FILTROS_NEG` | Object | Same keys as `FILTROS`; `true` negates that filter |
-| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants in any order (`consLivre`), onset, endings, beginnings… |
+| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants and vowels in any order (`consLivre`, `vogLivre`), letters to exclude (`excluir`), onset, endings, beginnings… |
+| `MODO_LIVRE` | Object | `{cons, vog}`: `'exatas'` \| `'repete'` \| `'contem'` — how the two any-order filters count |
 | `modoBusca` | String | `'rima'`, `'cons'` or `'vog'`: which engine ranks the results |
 | `modoCorpus` | Boolean | `true` if ESQ corpus mode is active |
 | `corpusEsquemas` | Array or `null` | Loaded corpus index; `null` until first ESQ search |
@@ -208,15 +209,21 @@ Consonant similarity uses IPA distinctive features (Chomsky & Halle 1968, Clemen
 
 ## Filters
 
-Filters work on their own (no anchor word) or on top of any search mode:
+Filters work on their own (no anchor word) or on top of any search mode. They are listed
+most-used first — Word class, Meaning, Syllable count, Exact beginning, Exact ending,
+Consonants in any order, Vowels in any order, Consonants and Vowels around the tonic, and
+the exclusion field — and the rest sit below an **Outros filtros** divider:
 - Syllable count (equal / less / greater)
 - Accentuation class (oxítona / paroxítona / proparoxítona)
 - Tonic vowel
 - Rhyme ending (`rimaPerfeita`) — type it directly, e.g. `el`, `ão`, `or`
-- Exact ending and exact beginning (spelling), and letters before/after the tonic vowel
+- Exact ending and exact beginning (spelling), with `*` standing for exactly one letter (`i*e` → lide, vire; `i**e` → disse, pilhe), and letters before/after the tonic vowel
+- **Without these letters or syllables**: `l, lhe, i` drops every word containing any of them (accent-insensitive, `*` allowed)
 - Onset of the tonic syllable (with phonetic tolerance)
 - Vowel pattern, vowel spine
 - Consonant sequence (in order) and **consonants in any order** (`td` → dote, tudo, data; with its own tolerance: exact / voicing / liquids & nasals)
+- **Vowels in any order** (`o a` → carro, corra)
+- Both any-order filters have three modes: **Exatas** (only these, once each — the default), **Com repetição** (only these, repeats allowed: `o a` → carona, corado) and **Contém** (these plus any others)
 - Coda consonants (with phonetic feature filters)
 - **Meaning** (nouns only): Pessoas, Lugares, Objetos e substâncias, Corpo e seres vivos, Ações e eventos, Conceitos e qualidades, Doenças, Tempo/ciências/artes, Ficcionais, Instituições, Relações e normas — grouped as Concretos / Abstratos / Outros. Pick several to combine them; each chip shows how many of the current results have that meaning (e.g. rhymes for `coração` that are places: estação, região, pavilhão…)
 - Word class (noun, adjective, verb, adverb) — from the PortiLexicon-UD lexicon; a word that can belong to several classes (`canto`: noun and verb form) shows up under each of them

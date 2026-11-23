@@ -664,6 +664,12 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   padding: 0 14px 16px;
 }
 .sh-section { margin-bottom: 20px; }
+/* Divisor entre os filtros mais usados e os demais */
+.filtros-divisor { display: flex; align-items: center; gap: 10px; margin: 6px 0 18px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); }
+.filtros-divisor::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.modo-livre { margin-top: 8px; }
+#filter-sheet .modo-livre .r-btn { min-height: 40px; font-size: 13px; }
 /* Folha de filtros (celular): alvos de toque de 44px no número de sílabas */
 #filter-sheet .sil-range-row .r-btn { min-width: 44px; height: 44px; padding: 0 8px; font-size: 16px; }
 #filter-sheet .step-btn { width: 44px; height: 44px; border-radius: 12px; font-size: 22px; }
@@ -812,6 +818,24 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   <!-- Sidebar (desktop only) -->
   <aside id="sidebar" aria-label="Filtros">
     <div class="sb-section">
+      <div class="sb-label-row">
+        <span class="sb-label">Classe gramatical</span>
+        <button class="neg-toggle" data-negkey="classe" onclick="toggleNeg('classe')" title="Excluir valor selecionado">≠</button>
+      </div>
+      <div class="radio-row">
+        <button class="r-btn sel" data-classe="" onclick="setClasse(null)">Qualquer</button>
+        <button class="r-btn" data-classe="sub" onclick="setClasse('sub')">Subst.</button>
+        <button class="r-btn" data-classe="adj" onclick="setClasse('adj')">Adj.</button>
+        <button class="r-btn" data-classe="vrb" onclick="setClasse('vrb')">Verbo</button>
+        <button class="r-btn" data-classe="adv" onclick="setClasse('adv')">Adv.</button>
+      </div>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Sentido (substantivos)</span>
+      <div class="sent-grid" role="group" aria-label="Filtrar por sentido"></div>
+      <p class="sb-hint">Toque em várias para somar; o grupo marca todas as dele. O número é quantos dos resultados atuais têm aquele sentido. Só substantivos têm sentido.</p>
+    </div>
+    <div class="sb-section">
       <span class="sb-label">Número de sílabas</span>
       <div class="sil-linha">
         <div class="sil-range-row">
@@ -826,6 +850,85 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
         </div>
       </div>
     </div>
+    <div class="sb-section">
+      <span class="sb-label">Início exato (grafia)</span>
+      <input id="inicio-input" class="sb-input" type="text"
+             placeholder="tra, j, des…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+      <p class="sb-hint">Palavras que começam com estas letras. Vírgula = OU; * = uma letra qualquer. Ex: "tra" → trabalho; "c*r" → carro, cores</p>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Terminação exata (grafia)</span>
+      <input id="term-input" class="sb-input" type="text"
+             placeholder="mo, ção, inho…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+      <p class="sb-hint">Palavras que terminam com estas letras. Vírgula = OU; * = uma letra qualquer. Ex: "mo" → amo; "i*e" → lide, vire; "i**e" → disse, pilhe</p>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Consoantes em qualquer ordem</span>
+      <input id="cons-livre-input" class="sb-input" type="text"
+             placeholder="td, mtd, ch r…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Consoantes que a palavra deve ter, em qualquer ordem">
+      <div class="radio-row modo-livre" role="radiogroup" aria-label="Como contar">
+        <button class="r-btn sel" data-modo-livre="cons:exatas" role="radio" aria-checked="true" onclick="setModoLivre('cons','exatas')">Exatas</button>
+        <button class="r-btn" data-modo-livre="cons:repete" role="radio" aria-checked="false" onclick="setModoLivre('cons','repete')">Com repetição</button>
+        <button class="r-btn" data-modo-livre="cons:contem" role="radio" aria-checked="false" onclick="setModoLivre('cons','contem')">Contém</button>
+      </div>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolLivre(-1)" aria-label="Menos tolerância">−</button>
+        <span class="tol-val" id="tol-livre-val-sb">Exato</span>
+        <button class="tol-btn" onclick="stepTolLivre(1)" aria-label="Mais tolerância">+</button>
+      </div>
+      <p class="sb-hint"><b>Exatas</b>: só estas, uma vez cada ("td" → dote, tudo). <b>Com repetição</b>: só estas, podendo repetir (datado, atitude). <b>Contém</b>: estas e outras (metade). Vale letra ou som: "s" acha casa e cidade</p>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Vogais em qualquer ordem</span>
+      <input id="vog-livre-input" class="sb-input" type="text"
+             placeholder="o a, eio, ou uma palavra…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Vogais que a palavra deve ter, em qualquer ordem">
+      <div class="radio-row modo-livre" role="radiogroup" aria-label="Como contar">
+        <button class="r-btn sel" data-modo-livre="vog:exatas" role="radio" aria-checked="true" onclick="setModoLivre('vog','exatas')">Exatas</button>
+        <button class="r-btn" data-modo-livre="vog:repete" role="radio" aria-checked="false" onclick="setModoLivre('vog','repete')">Com repetição</button>
+        <button class="r-btn" data-modo-livre="vog:contem" role="radio" aria-checked="false" onclick="setModoLivre('vog','contem')">Contém</button>
+      </div>
+      <p class="sb-hint"><b>Exatas</b>: "o a" → carro, corra. <b>Com repetição</b>: carona, corado. <b>Contém</b>: estas e outras (cortina). Acentos não importam; o u mudo de que/gui não conta</p>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Consoantes ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="cons-antes-input" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="cons-depois-input" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(-1)" aria-label="Menos tolerância">−</button>
+        <span class="tol-val" id="tol-ar-val-sb">0</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(1)" aria-label="Mais tolerância">+</button>
+      </div>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Vogais ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="vog-antes-input" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="vog-depois-input" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+    </div>
+    <div class="sb-section">
+      <span class="sb-label">Sem estas letras ou sílabas</span>
+      <input id="excluir-input" class="sb-input" type="text"
+             placeholder="l, lhe, i…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Excluir palavras que tenham estas letras ou sílabas">
+      <p class="sb-hint">Tira toda palavra que tenha qualquer uma delas. Vírgula ou espaço separam; acentos não importam ("i" tira saída); * = uma letra qualquer</p>
+    </div>
+    <div class="filtros-divisor">Outros filtros</div>
     <div class="sb-section">
       <div class="sb-label-row">
         <span class="sb-label">Acentuação</span>
@@ -855,20 +958,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
              autocorrect="off" autocapitalize="none" spellcheck="false">
     </div>
     <div class="sb-section">
-      <span class="sb-label">Terminação exata (grafia)</span>
-      <input id="term-input" class="sb-input" type="text"
-             placeholder="mo, ção, inho…"
-             autocorrect="off" autocapitalize="none" spellcheck="false">
-      <p class="sb-hint">Palavras que terminam com estas letras. Vírgula = OU. Ex: "mo" → amo, próximo</p>
-    </div>
-    <div class="sb-section">
-      <span class="sb-label">Início exato (grafia)</span>
-      <input id="inicio-input" class="sb-input" type="text"
-             placeholder="tra, j, des…"
-             autocorrect="off" autocapitalize="none" spellcheck="false">
-      <p class="sb-hint">Palavras que começam com estas letras. Vírgula = OU. Ex: "tra" → trabalho, tranquilo</p>
-    </div>
-    <div class="sb-section">
       <span class="sb-label">Letras ao redor da tônica (grafia)</span>
       <div class="sb-around-row">
         <input id="graf-antes-input" class="sb-input sb-input-half" type="text"
@@ -883,48 +972,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       <input id="onset-input" class="sb-input" type="text"
              placeholder="tr, pr, fl, s, r…"
              autocorrect="off" autocapitalize="none" spellcheck="false">
-    </div>
-    <div class="sb-section">
-      <span class="sb-label">Consoantes ao redor da tônica</span>
-      <div class="sb-around-row">
-        <input id="cons-antes-input" class="sb-input sb-input-half" type="text"
-               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
-        <input id="cons-depois-input" class="sb-input sb-input-half" type="text"
-               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
-      </div>
-      <div class="tol-row">
-        <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolAoRedor(-1)" aria-label="Menos tolerância">−</button>
-        <span class="tol-val" id="tol-ar-val-sb">0</span>
-        <button class="tol-btn" onclick="stepTolAoRedor(1)" aria-label="Mais tolerância">+</button>
-      </div>
-    </div>
-    <div class="sb-section">
-      <span class="sb-label">Vogais ao redor da tônica</span>
-      <div class="sb-around-row">
-        <input id="vog-antes-input" class="sb-input sb-input-half" type="text"
-               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
-        <input id="vog-depois-input" class="sb-input sb-input-half" type="text"
-               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
-      </div>
-    </div>
-    <div class="sb-section">
-      <div class="sb-label-row">
-        <span class="sb-label">Classe gramatical</span>
-        <button class="neg-toggle" data-negkey="classe" onclick="toggleNeg('classe')" title="Excluir valor selecionado">≠</button>
-      </div>
-      <div class="radio-row">
-        <button class="r-btn sel" data-classe="" onclick="setClasse(null)">Qualquer</button>
-        <button class="r-btn" data-classe="sub" onclick="setClasse('sub')">Subst.</button>
-        <button class="r-btn" data-classe="adj" onclick="setClasse('adj')">Adj.</button>
-        <button class="r-btn" data-classe="vrb" onclick="setClasse('vrb')">Verbo</button>
-        <button class="r-btn" data-classe="adv" onclick="setClasse('adv')">Adv.</button>
-      </div>
-    </div>
-    <div class="sb-section">
-      <span class="sb-label">Sentido (substantivos)</span>
-      <div class="sent-grid" role="group" aria-label="Filtrar por sentido"></div>
-      <p class="sb-hint">Toque em várias para somar; o grupo marca todas as dele. O número é quantos dos resultados atuais têm aquele sentido. Só substantivos têm sentido.</p>
     </div>
     <div class="sb-section">
       <div class="sb-label-row">
@@ -982,20 +1029,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
         <button class="tol-btn" onclick="stepTolerancia(-1)" aria-label="Menos tolerância">−</button>
         <span class="tol-val" id="tol-val-sb">Exato</span>
         <button class="tol-btn" onclick="stepTolerancia(1)" aria-label="Mais tolerância">+</button>
-      </div>
-    </div>
-    <div class="sb-section">
-      <span class="sb-label">Consoantes em qualquer ordem</span>
-      <input id="cons-livre-input" class="sb-input" type="text"
-             placeholder="td, mtd, ch r…"
-             autocorrect="off" autocapitalize="none" spellcheck="false"
-             aria-label="Consoantes que a palavra deve ter, em qualquer ordem">
-      <p class="sb-hint">Todas presentes, em qualquer ordem e posição. Ex: "td" → dote, tudo, data. Vale letra ou som: "s" acha casa e cidade</p>
-      <div class="tol-row">
-        <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolLivre(-1)" aria-label="Menos tolerância">−</button>
-        <span class="tol-val" id="tol-livre-val-sb">Exato</span>
-        <button class="tol-btn" onclick="stepTolLivre(1)" aria-label="Mais tolerância">+</button>
       </div>
     </div>
     <div class="sb-section">
@@ -1085,6 +1118,24 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   </div>
   <div class="sheet-body">
     <div class="sh-section">
+      <div class="sh-label-row">
+        <span class="sh-label">Classe gramatical</span>
+        <button class="neg-toggle" data-negkey="classe" onclick="toggleNeg('classe')" title="Excluir valor selecionado">≠</button>
+      </div>
+      <div class="radio-row">
+        <button class="r-btn sel" data-classe="" onclick="setClasse(null)">Qualquer</button>
+        <button class="r-btn" data-classe="sub" onclick="setClasse('sub')">Subst.</button>
+        <button class="r-btn" data-classe="adj" onclick="setClasse('adj')">Adj.</button>
+        <button class="r-btn" data-classe="vrb" onclick="setClasse('vrb')">Verbo</button>
+        <button class="r-btn" data-classe="adv" onclick="setClasse('adv')">Adv.</button>
+      </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Sentido (substantivos)</span>
+      <div class="sent-grid" role="group" aria-label="Filtrar por sentido"></div>
+      <p class="sb-hint">Toque em várias para somar; o grupo marca todas as dele. O número é quantos dos resultados atuais têm aquele sentido. Só substantivos têm sentido.</p>
+    </div>
+    <div class="sh-section">
       <span class="sh-label">Número de sílabas</span>
       <div class="sil-linha">
         <div class="sil-range-row">
@@ -1099,6 +1150,85 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
         </div>
       </div>
     </div>
+    <div class="sh-section">
+      <span class="sh-label">Início exato (grafia)</span>
+      <input id="inicio-input-sh" class="sb-input" type="text"
+             placeholder="tra, j, des…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+      <p class="sb-hint">Palavras que começam com estas letras. Vírgula = OU; * = uma letra qualquer. Ex: "tra" → trabalho; "c*r" → carro, cores</p>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Terminação exata (grafia)</span>
+      <input id="term-input-sh" class="sb-input" type="text"
+             placeholder="mo, ção, inho…"
+             autocorrect="off" autocapitalize="none" spellcheck="false">
+      <p class="sb-hint">Palavras que terminam com estas letras. Vírgula = OU; * = uma letra qualquer. Ex: "mo" → amo; "i*e" → lide, vire; "i**e" → disse, pilhe</p>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Consoantes em qualquer ordem</span>
+      <input id="cons-livre-input-sh" class="sb-input" type="text"
+             placeholder="td, mtd, ch r…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Consoantes que a palavra deve ter, em qualquer ordem">
+      <div class="radio-row modo-livre" role="radiogroup" aria-label="Como contar">
+        <button class="r-btn sel" data-modo-livre="cons:exatas" role="radio" aria-checked="true" onclick="setModoLivre('cons','exatas')">Exatas</button>
+        <button class="r-btn" data-modo-livre="cons:repete" role="radio" aria-checked="false" onclick="setModoLivre('cons','repete')">Com repetição</button>
+        <button class="r-btn" data-modo-livre="cons:contem" role="radio" aria-checked="false" onclick="setModoLivre('cons','contem')">Contém</button>
+      </div>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolLivre(-1)" aria-label="Menos tolerância (consoantes em qualquer ordem)">−</button>
+        <span class="tol-val" id="tol-livre-val-sh" aria-live="polite">Exato</span>
+        <button class="tol-btn" onclick="stepTolLivre(1)" aria-label="Mais tolerância (consoantes em qualquer ordem)">+</button>
+      </div>
+      <p class="sb-hint"><b>Exatas</b>: só estas, uma vez cada ("td" → dote, tudo). <b>Com repetição</b>: só estas, podendo repetir (datado, atitude). <b>Contém</b>: estas e outras (metade). Vale letra ou som: "s" acha casa e cidade</p>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Vogais em qualquer ordem</span>
+      <input id="vog-livre-input-sh" class="sb-input" type="text"
+             placeholder="o a, eio, ou uma palavra…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Vogais que a palavra deve ter, em qualquer ordem">
+      <div class="radio-row modo-livre" role="radiogroup" aria-label="Como contar">
+        <button class="r-btn sel" data-modo-livre="vog:exatas" role="radio" aria-checked="true" onclick="setModoLivre('vog','exatas')">Exatas</button>
+        <button class="r-btn" data-modo-livre="vog:repete" role="radio" aria-checked="false" onclick="setModoLivre('vog','repete')">Com repetição</button>
+        <button class="r-btn" data-modo-livre="vog:contem" role="radio" aria-checked="false" onclick="setModoLivre('vog','contem')">Contém</button>
+      </div>
+      <p class="sb-hint"><b>Exatas</b>: "o a" → carro, corra. <b>Com repetição</b>: carona, corado. <b>Contém</b>: estas e outras (cortina). Acentos não importam; o u mudo de que/gui não conta</p>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Consoantes ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="cons-antes-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="cons-depois-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="tol-row">
+        <span class="tol-label">Tolerância</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(-1)" aria-label="Menos tolerância (letras ao redor da tônica)">−</button>
+        <span class="tol-val" id="tol-ar-val-sh" aria-live="polite">0</span>
+        <button class="tol-btn" onclick="stepTolAoRedor(1)" aria-label="Mais tolerância (letras ao redor da tônica)">+</button>
+      </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Vogais ao redor da tônica</span>
+      <div class="sb-around-row">
+        <input id="vog-antes-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <input id="vog-depois-input-sh" class="sb-input sb-input-half" type="text"
+               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Sem estas letras ou sílabas</span>
+      <input id="excluir-input-sh" class="sb-input" type="text"
+             placeholder="l, lhe, i…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Excluir palavras que tenham estas letras ou sílabas">
+      <p class="sb-hint">Tira toda palavra que tenha qualquer uma delas. Vírgula ou espaço separam; acentos não importam ("i" tira saída); * = uma letra qualquer</p>
+    </div>
+    <div class="filtros-divisor">Outros filtros</div>
     <div class="sh-section">
       <div class="sh-label-row">
         <span class="sh-label">Acentuação</span>
@@ -1128,20 +1258,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
              autocorrect="off" autocapitalize="none" spellcheck="false">
     </div>
     <div class="sh-section">
-      <span class="sh-label">Terminação exata (grafia)</span>
-      <input id="term-input-sh" class="sb-input" type="text"
-             placeholder="mo, ção, inho…"
-             autocorrect="off" autocapitalize="none" spellcheck="false">
-      <p class="sb-hint">Palavras que terminam com estas letras. Vírgula = OU. Ex: "mo" → amo, próximo</p>
-    </div>
-    <div class="sh-section">
-      <span class="sh-label">Início exato (grafia)</span>
-      <input id="inicio-input-sh" class="sb-input" type="text"
-             placeholder="tra, j, des…"
-             autocorrect="off" autocapitalize="none" spellcheck="false">
-      <p class="sb-hint">Palavras que começam com estas letras. Vírgula = OU. Ex: "tra" → trabalho, tranquilo</p>
-    </div>
-    <div class="sh-section">
       <span class="sh-label">Letras ao redor da tônica (grafia)</span>
       <div class="sb-around-row">
         <input id="graf-antes-input-sh" class="sb-input sb-input-half" type="text"
@@ -1156,48 +1272,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       <input id="onset-input-sh" class="sb-input" type="text"
              placeholder="tr, pr, fl, s, r…"
              autocorrect="off" autocapitalize="none" spellcheck="false">
-    </div>
-    <div class="sh-section">
-      <span class="sh-label">Consoantes ao redor da tônica</span>
-      <div class="sb-around-row">
-        <input id="cons-antes-input-sh" class="sb-input sb-input-half" type="text"
-               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
-        <input id="cons-depois-input-sh" class="sb-input sb-input-half" type="text"
-               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
-      </div>
-      <div class="tol-row">
-        <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolAoRedor(-1)" aria-label="Menos tolerância (letras ao redor da tônica)">−</button>
-        <span class="tol-val" id="tol-ar-val-sh" aria-live="polite">0</span>
-        <button class="tol-btn" onclick="stepTolAoRedor(1)" aria-label="Mais tolerância (letras ao redor da tônica)">+</button>
-      </div>
-    </div>
-    <div class="sh-section">
-      <span class="sh-label">Vogais ao redor da tônica</span>
-      <div class="sb-around-row">
-        <input id="vog-antes-input-sh" class="sb-input sb-input-half" type="text"
-               placeholder="antes…" autocorrect="off" autocapitalize="none" spellcheck="false">
-        <input id="vog-depois-input-sh" class="sb-input sb-input-half" type="text"
-               placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
-      </div>
-    </div>
-    <div class="sh-section">
-      <div class="sh-label-row">
-        <span class="sh-label">Classe gramatical</span>
-        <button class="neg-toggle" data-negkey="classe" onclick="toggleNeg('classe')" title="Excluir valor selecionado">≠</button>
-      </div>
-      <div class="radio-row">
-        <button class="r-btn sel" data-classe="" onclick="setClasse(null)">Qualquer</button>
-        <button class="r-btn" data-classe="sub" onclick="setClasse('sub')">Subst.</button>
-        <button class="r-btn" data-classe="adj" onclick="setClasse('adj')">Adj.</button>
-        <button class="r-btn" data-classe="vrb" onclick="setClasse('vrb')">Verbo</button>
-        <button class="r-btn" data-classe="adv" onclick="setClasse('adv')">Adv.</button>
-      </div>
-    </div>
-    <div class="sh-section">
-      <span class="sh-label">Sentido (substantivos)</span>
-      <div class="sent-grid" role="group" aria-label="Filtrar por sentido"></div>
-      <p class="sb-hint">Toque em várias para somar; o grupo marca todas as dele. O número é quantos dos resultados atuais têm aquele sentido. Só substantivos têm sentido.</p>
     </div>
     <div class="sh-section">
       <div class="sh-label-row">
@@ -1255,20 +1329,6 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
         <button class="tol-btn" onclick="stepTolerancia(-1)" aria-label="Menos tolerância (sequência de consoantes)">−</button>
         <span class="tol-val" id="tol-val-sh" aria-live="polite">Exato</span>
         <button class="tol-btn" onclick="stepTolerancia(1)" aria-label="Mais tolerância (sequência de consoantes)">+</button>
-      </div>
-    </div>
-    <div class="sh-section">
-      <span class="sh-label">Consoantes em qualquer ordem</span>
-      <input id="cons-livre-input-sh" class="sb-input" type="text"
-             placeholder="td, mtd, ch r…"
-             autocorrect="off" autocapitalize="none" spellcheck="false"
-             aria-label="Consoantes que a palavra deve ter, em qualquer ordem">
-      <p class="sb-hint">Todas presentes, em qualquer ordem e posição. Ex: "td" → dote, tudo, data. Vale letra ou som: "s" acha casa e cidade</p>
-      <div class="tol-row">
-        <span class="tol-label">Tolerância</span>
-        <button class="tol-btn" onclick="stepTolLivre(-1)" aria-label="Menos tolerância (consoantes em qualquer ordem)">−</button>
-        <span class="tol-val" id="tol-livre-val-sh" aria-live="polite">Exato</span>
-        <button class="tol-btn" onclick="stepTolLivre(1)" aria-label="Mais tolerância (consoantes em qualquer ordem)">+</button>
       </div>
     </div>
     <div class="sh-section">
@@ -1846,6 +1906,45 @@ function consCategoria(W, A) {
     for (let j = 0; j < m; j++) if (dono[j] < 0) return null;   // sobrou consoante
     return falta.length === 0 ? 'mesmas' : A.s[falta[0]];
 }
+/* Consoantes / vogais em qualquer ordem — três modos (MODO_LIVRE):
+   'exatas'  só as pedidas, uma vez cada        ("o a" → carro, corra)
+   'repete'  só as pedidas, podendo repetir      ("o a" → carona, corado)
+   'contem'  as pedidas e quaisquer outras       (comportamento antigo)  */
+let MODO_LIVRE = { cons: 'exatas', vog: 'exatas' };
+function consLivreModo(W, Q, tol, modo) {
+    if (modo === 'contem') return consQualquerOrdem(W, Q, tol);
+    if (modo === 'exatas') return W.s.length === Q.s.length && consQualquerOrdem(W, Q, tol);
+    // repete: toda consoante da palavra é uma das pedidas, e toda pedida aparece
+    const n = Q.s.length, m = W.s.length;
+    if (!m) return false;
+    const usada = new Uint8Array(n);
+    for (let j = 0; j < m; j++) {
+        let ok = false;
+        for (let q = 0; q < n; q++)
+            if (_consParOk(Q.s[q], Q.l[q], W.s[j], W.l[j], tol)) { usada[q] = 1; ok = true; }
+        if (!ok) return false;
+    }
+    return usada.every(Boolean);
+}
+// Vogais: letras da espinha vocal (u mudo de que/gui fora; acentos e til viram a vogal base)
+const _vogaisDe = s => _normParaContem(calcEspinha(s.toLowerCase())).replace(/[^aeiou]/g, '');
+function vogLivreModo(w, q, modo) {          // w, q: strings de vogais ("aoa", "oa")
+    if (!w) return false;
+    const cont = s => { const c = {}; for (const v of s) c[v] = (c[v] || 0) + 1; return c; };
+    const cw = cont(w), cq = cont(q);
+    if (modo === 'contem') return Object.keys(cq).every(v => (cw[v] || 0) >= cq[v]);
+    if (modo === 'exatas') return w.length === q.length && Object.keys(cq).every(v => cw[v] === cq[v]);
+    return Object.keys(cw).every(v => cq[v]) && Object.keys(cq).every(v => cw[v]);   // repete
+}
+/* Padrões de grafia com coringa: cada * vale exatamente uma letra
+   ("i*e" → lide, vire; "i**e" → disse, pilhe). Vírgula separa alternativas (OU). */
+function _regexGrafia(itens, ancora, normaliza) {
+    if (!itens || !itens.length) return null;
+    const esc = s => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.');
+    const alt = itens.map(x => esc(normaliza ? normaliza(x) : x)).join('|');
+    return new RegExp(ancora === '^' ? `^(?:${alt})` : ancora === '$' ? `(?:${alt})$` : `(?:${alt})`);
+}
+
 // Rótulo legível de um som da base para o chip "sem …" (consoante ou vogal)
 const _esqK = () => modoBusca === 'vog' ? 'esqV' : 'esq';   // qual esqueleto o modo atual compara
 function _esqNome(A, k) {
@@ -2030,6 +2129,8 @@ let FILTROS_CONTEM = {
     toleranciaAoRedor: 0, terminacao: null,
     inicio: null, grafAntes: null, grafDepois: null,
     consLivre: null, toleranciaLivre: 0,   // consoantes em qualquer ordem
+    vogLivre: null,                        // vogais em qualquer ordem
+    excluir: null,                         // sem estas letras/sílabas (vírgula ou espaço)
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2626,12 +2727,20 @@ function processarBusca() {
     let base = alvoAtual ? dicionario.filter(i => i.palavra !== alvoAtual.palavra) : dicionario;
     // Terminação exata: grafia literal, várias separadas por vírgula (OU)
     let termList = FILTROS_CONTEM.terminacao
-        ? FILTROS_CONTEM.terminacao.split(',').map(t => t.trim()).filter(Boolean)
+        ? FILTROS_CONTEM.terminacao.toLowerCase().split(',').map(t => t.trim()).filter(Boolean)
         : null;
     if (termList && !termList.length) termList = null;
+    const termRe = _regexGrafia(termList, '$');          // * = uma letra qualquer
     // Início / grafia antes / depois da vogal tônica: letras exatas, vírgula = OU
     const _lista = v => { let l = v ? v.split(',').map(t => t.trim()).filter(Boolean) : []; return l.length ? l : null; };
-    let inicioList = _lista(FILTROS_CONTEM.inicio);
+    let inicioList = _lista(FILTROS_CONTEM.inicio && FILTROS_CONTEM.inicio.toLowerCase());
+    const inicioRe = _regexGrafia(inicioList, '^');
+    // Sem estas letras/sílabas: vírgula ou espaço separam; acentos não importam; * = uma letra
+    const excluirRe = FILTROS_CONTEM.excluir
+        ? _regexGrafia(FILTROS_CONTEM.excluir.toLowerCase().split(/[\s,]+/).filter(Boolean), '', _normParaContem)
+        : null;
+    // Vogais em qualquer ordem: "o a", "o, a", "oa" ou uma palavra (usa as vogais dela)
+    const vogQ = FILTROS_CONTEM.vogLivre ? _vogaisDe(FILTROS_CONTEM.vogLivre.replace(/[^a-zà-ÿç]/gi, '')) : '';
     let antesList  = _lista(FILTROS_CONTEM.grafAntes);
     let depoisList = _lista(FILTROS_CONTEM.grafDepois);
     // Consoantes em qualquer ordem: "t d", "t,d", "td" ou uma palavra (usa as consoantes dela)
@@ -2664,8 +2773,10 @@ function processarBusca() {
             let q = _normParaContem(FILTROS_CONTEM.vogais);
             if (!_normParaContem(item.espinhaVocal).includes(q)) return false;
         }
-        if (termList && !termList.some(t => item.palavra.endsWith(t))) return false;
-        if (inicioList && !inicioList.some(t => item.palavra.startsWith(t))) return false;
+        if (termRe && !termRe.test(item.palavra)) return false;
+        if (inicioRe && !inicioRe.test(item.palavra)) return false;
+        if (excluirRe && excluirRe.test(_normParaContem(item.palavra))) return false;
+        if (vogQ && !vogLivreModo(_normParaContem(item.espinhaVocal), vogQ, MODO_LIVRE.vog)) return false;
         if (antesList  && !antesList.some(t => item.grafAntes.includes(t)))   return false;
         if (depoisList && !depoisList.some(t => item.grafDepois.includes(t))) return false;
         if (FILTROS_CONTEM.consoantes) {
@@ -2676,7 +2787,7 @@ function processarBusca() {
                 if (!item.espinhaConsonantal.includes(q)) return false;
             }
         }
-        if (livreQ && !consQualquerOrdem(item.esq, livreQ, FILTROS_CONTEM.toleranciaLivre)) return false;
+        if (livreQ && !consLivreModo(item.esq, livreQ, FILTROS_CONTEM.toleranciaLivre, MODO_LIVRE.cons)) return false;
         if (FILTROS_CONTEM.consAntes) {
             let q = FILTROS_CONTEM.consAntes.replace(/[aeiouáàâãéêíóôõúü]/g,'');
             if (FILTROS_CONTEM.toleranciaAoRedor > 0) {
@@ -3322,10 +3433,13 @@ function resetFiltros() {
     FILTROS_CONTEM.toleranciaAoRedor = 0; FILTROS_CONTEM.terminacao = null;
     FILTROS_CONTEM.inicio = null; FILTROS_CONTEM.grafAntes = null; FILTROS_CONTEM.grafDepois = null;
     FILTROS_CONTEM.consLivre = null; FILTROS_CONTEM.toleranciaLivre = 0;
+    FILTROS_CONTEM.vogLivre = null; FILTROS_CONTEM.excluir = null;
+    MODO_LIVRE = { cons: 'exatas', vog: 'exatas' }; _syncModoLivreUI();
     _syncTolLivreUI();
     buildSilMode = 'eq';
     ['vogais-input','vogais-input-sh','cons-input','cons-input-sh',
      'cons-livre-input','cons-livre-input-sh',
+     'vog-livre-input','vog-livre-input-sh','excluir-input','excluir-input-sh',
      'cons-antes-input','cons-antes-input-sh','cons-depois-input','cons-depois-input-sh',
      'vog-antes-input','vog-antes-input-sh','vog-depois-input','vog-depois-input-sh',
      'term-input','term-input-sh','inicio-input','inicio-input-sh',
@@ -3462,6 +3576,20 @@ function _syncTolLivreUI() {
         let el = document.getElementById(id); if (el) el.textContent = lbl;
     });
 }
+function _syncModoLivreUI() {
+    document.querySelectorAll('[data-modo-livre]').forEach(b => {
+        const [tipo, modo] = b.dataset.modoLivre.split(':');
+        const on = MODO_LIVRE[tipo] === modo;
+        b.classList.toggle('sel', on); b.setAttribute('aria-checked', String(on));
+    });
+}
+function setModoLivre(tipo, modo) {
+    MODO_LIVRE[tipo] = modo;
+    _syncModoLivreUI();
+    if (navigator.vibrate) navigator.vibrate(15);
+    if (FILTROS_CONTEM[tipo === 'cons' ? 'consLivre' : 'vogLivre']) processarBusca();
+}
+
 function stepTolLivre(delta) {
     FILTROS_CONTEM.toleranciaLivre = Math.max(0, Math.min(2, FILTROS_CONTEM.toleranciaLivre + delta));
     _syncTolLivreUI();
@@ -3863,6 +3991,21 @@ function _onConsLivreInput(e) {
 }
 document.getElementById('cons-livre-input').addEventListener('input', _onConsLivreInput);
 document.getElementById('cons-livre-input-sh').addEventListener('input', _onConsLivreInput);
+
+// Campos espelhados (barra lateral ↔ folha) que só guardam texto em FILTROS_CONTEM
+function _ligaCampo(idBase, chave) {
+    const ids = [idBase, idBase + '-sh'];
+    let deb;
+    ids.forEach(id => document.getElementById(id).addEventListener('input', e => {
+        clearTimeout(deb);
+        ids.forEach(o => { const el = document.getElementById(o); if (el !== e.target) el.value = e.target.value; });
+        const val = e.target.value.trim();
+        deb = setTimeout(() => { FILTROS_CONTEM[chave] = val || null; processarBusca(); _updateFabBadge(); }, 300);
+    }));
+}
+_ligaCampo('vog-livre-input', 'vogLivre');
+_ligaCampo('excluir-input', 'excluir');
+_syncModoLivreUI();
 
 document.getElementById('cons-antes-input').addEventListener('input',    e => _onArInput('consAntes',  e.target));
 document.getElementById('cons-antes-input-sh').addEventListener('input', e => _onArInput('consAntes',  e.target));
