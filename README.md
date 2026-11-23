@@ -29,12 +29,15 @@ ptbr/
 ├── build-corpus.js             # CLI: processes letras_final.json → dic/corpus-schemes.json
 ├── rhyme-extract.js            # CLI: extracts rhyme schemes from individual songs
 ├── build-classes.js            # CLI: PortiLexicon-UD → dic/classes-*.txt (word classes)
+├── build-sentidos.js           # CLI: dic/substantivos-sentidos.csv → dic/sentidos.txt (meanings)
 ├── dic/
 │   ├── k-palavras.txt          # Common-word list — the app's default dictionary (31,113 words after cleaning)
 │   ├── palavras.txt            # Full dictionary, 145,744 words (exp/index.html?dic=completo, and som/)
 │   ├── classes-comum.txt       # Word classes for the default dictionary (from PortiLexicon-UD)
 │   ├── classes-completo.txt    # Word classes for the rest of palavras.txt (loaded only with ?dic=completo)
 │   ├── PORTILEXICON-LICENSE    # MIT licence of PortiLexicon-UD
+│   ├── substantivos-sentidos.csv  # Semantic classification of the nouns (source, edit this)
+│   ├── sentidos.txt            # Generated from it, loaded by the app
 │   └── corpus-schemes.json     # 474 songs, 3,254 deduplicated stanzas, compact {a,t,g,s[]} (139 KB)
 ├── upload/
 │   └── letras_final.json       # 478 song lyrics with full text (MPB, Pagode, Sertanejo, Pop/Rock, Rap…)
@@ -215,6 +218,7 @@ Filters work on their own (no anchor word) or on top of any search mode:
 - Vowel pattern, vowel spine
 - Consonant sequence (in order) and **consonants in any order** (`td` → dote, tudo, data; with its own tolerance: exact / voicing / liquids & nasals)
 - Coda consonants (with phonetic feature filters)
+- **Meaning** (nouns only): Pessoas, Lugares, Objetos e substâncias, Corpo e seres vivos, Ações e eventos, Conceitos e qualidades, Doenças, Tempo/ciências/artes, Ficcionais, Instituições, Relações e normas — grouped as Concretos / Abstratos / Outros. Pick several to combine them; each chip shows how many of the current results have that meaning (e.g. rhymes for `coração` that are places: estação, região, pavilhão…)
 - Word class (noun, adjective, verb, adverb) — from the PortiLexicon-UD lexicon; a word that can belong to several classes (`canto`: noun and verb form) shows up under each of them
 - Frequency tier (comum / média / rara — estimated from length and suffixes)
 
