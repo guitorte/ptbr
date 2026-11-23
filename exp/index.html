@@ -657,6 +657,10 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
 /* Folha de filtros (celular): alvos de toque de 44px no número de sílabas */
 #filter-sheet .sil-range-row .r-btn { min-width: 44px; height: 44px; padding: 0 8px; font-size: 16px; }
 #filter-sheet .step-btn { width: 44px; height: 44px; border-radius: 12px; font-size: 22px; }
+/* Na folha, o número de sílabas fica no topo da tela: tudo alinhado à
+   esquerda, ao alcance do polegar esquerdo — = ≤ ≥ em cima e − valor +
+   embaixo (mais perto de onde o polegar vem) */
+#filter-sheet .sil-linha { flex-direction: column; align-items: flex-start; gap: 8px; }
 .sh-label {
   display: block; font-size: 10px; font-weight: 700;
   letter-spacing: 0.7px; text-transform: uppercase;
