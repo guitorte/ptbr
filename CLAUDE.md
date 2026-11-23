@@ -18,6 +18,9 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
 | `build-classes.js` | CLI: `node build-classes.js <PortiLexicon-UD clone>` → `dic/classes-comum.txt` + `dic/classes-completo.txt`. Re-run after changing either word list |
 | `dic/classes-comum.txt`, `dic/classes-completo.txt` | Word classes from PortiLexicon-UD (MIT, `dic/PORTILEXICON-LICENSE`): one line per class combination, `<codes>\t<word> <word> …`, codes `s a v d o`. `-comum` = default base (27,721 of 31,113 words); `-completo` = rest of `palavras.txt` (55,168 of 133,072), loaded only with `?dic=completo` |
+| `build-sentidos.js` | CLI: `node build-sentidos.js` → `dic/sentidos.txt` from `dic/substantivos-sentidos.csv`. Re-run after editing the CSV |
+| `dic/substantivos-sentidos.csv` | **The user's own semantic classification** of the nouns (`Palavra, Seção, Categoria, Observação`; 13,009 rows). Source of truth for the meaning filter — edit this, not `sentidos.txt`. Section 5 ("Ruídos": 1,636 adjectives/participles, 246 verbs/pronouns, 78 typos) is ignored by the build |
+| `dic/sentidos.txt` | Generated: one line per category, `<code>\t<word> <word> …` (codes `pes lug obj ser aca con doe tem fic ins rel`); 10,940 words, 105 KB |
 | `dic/palavras.txt` | Full dictionary: 145,744 Portuguese words, one per line (1.5 MB). **Not the app's default base any more** — `exp/` uses it only with `?dic=completo`; `som/` still uses it |
 | `dic/corpus-schemes.json` | 474 songs × deduplicated stanzas in compact `{a,t,g,s[]}` format (139 KB) |
 | `upload/letras_final.json` | 478 song lyrics with full text (`{artista, titulo, letra, genero, fonte}`) — lazy-loaded in-browser on first card click |
@@ -194,6 +197,32 @@ Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
 
 ---
 
+## Meaning filter (`sentidos`)
+
+Filter section **Sentido (substantivos)**, in the sidebar and the phone sheet, right after
+*Classe gramatical*. Data: the user's classification in `dic/substantivos-sentidos.csv`,
+compiled by `build-sentidos.js` into `dic/sentidos.txt`, loaded into `SENTIDOS_LEX`.
+
+- 11 categories in 3 rows (`SENTIDOS`): **Concretos** (Pessoas, Lugares, Objetos e
+  substâncias, Corpo e seres vivos), **Abstratos** (Ações e eventos, Conceitos e
+  qualidades, Doenças, Tempo/ciências/artes), **Outros** (Ficcionais, Instituições,
+  Relações e normas). The CSV's sections 3 and 4 share the "Outros" row.
+- Every profile has `sentidos` (array of codes; empty for non-nouns). 128 words are
+  in more than one category (`igreja`: lugar + instituição; `casa`: lugar + objeto).
+- **Multi-select, OR**: `FILTRO_SENTIDOS` (Set). A group chip toggles all of its
+  categories; "Qualquer" clears.
+- Applied **at the end of `processarBusca`, after scoring**, so `CONTAGEM_SENTIDOS`
+  can give every chip the number of *current results* in it (groups count each
+  word once). Ranking is unchanged — the filter only removes.
+- Counts as an active filter (`temCriterio`, FAB badge): with no anchor word, picking
+  only "Doenças" lists all 123 disease nouns.
+- Not stored in the URL hash (like the other typed/multi-select filters).
+- If `sentidos.txt` fails to load, chips show 0 and the app works normally.
+- Coverage: 10,929 of the 31,113 default-base words; nothing for `?dic=completo`
+  words outside it.
+
+---
+
 ## User input & result order
 
 - **Every word the user supplies goes through `palavraValida(raw)`** — search box,
@@ -248,6 +277,8 @@ These bands and weights are Rima mode only; CONS and VOG map their own similarit
 | `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields) |
 | `modoBusca` | `'rima'` \| `'cons'` \| `'vog'` — which engine ranks the results |
 | `FILTRO_CAT` | Selected category chips in CONS/VOG mode (`'mesmas'` and/or missing-sound symbols) |
+| `FILTRO_SENTIDOS` | Selected meaning categories (Set of `pes`, `lug`…; empty = any) |
+| `CONTAGEM_SENTIDOS` | Results per meaning category and per group, for the chip counts |
 | `modoCorpus` | Boolean: ESQ mode active |
 | `corpusEsquemas` | Loaded corpus index (`null` until first ESQ use) |
 | `letrasDict` | `Map<"artista§titulo", letra>` — built lazily on first card click |

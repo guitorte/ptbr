@@ -289,6 +289,16 @@ body {
 }
 .r-btn:active { transform: scale(0.91); }
 .r-btn.sel { background: var(--primary); border-color: var(--primary); color: #fff; }
+/* Sentido: uma linha por grupo; o chip do grupo vem primeiro, em negrito */
+.sent-grid { display: flex; flex-direction: column; gap: 14px; }
+.sent-linha { gap: 6px; }
+.sent-btn { display: inline-flex; align-items: center; gap: 5px; }
+.sent-btn .sent-n { font-size: 10px; font-weight: 700; opacity: 0.65; }
+.sent-btn.sent-qualquer .sent-n { display: none; }
+.sent-btn.sent-grupo { font-weight: 800; color: var(--text); }
+.sent-btn.sent-grupo.sel { color: #fff; }
+.sent-btn.vazio:not(.sel):not(.sent-qualquer) { opacity: 0.45; }
+#filter-sheet .sent-btn { min-height: 40px; font-size: 13px; }
 /* Vowel row */
 .vowel-row { display: flex; gap: 6px; }
 .v-btn {
@@ -912,6 +922,11 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       </div>
     </div>
     <div class="sb-section">
+      <span class="sb-label">Sentido (substantivos)</span>
+      <div class="sent-grid" role="group" aria-label="Filtrar por sentido"></div>
+      <p class="sb-hint">Toque em várias para somar; o grupo marca todas as dele. O número é quantos dos resultados atuais têm aquele sentido. Só substantivos têm sentido.</p>
+    </div>
+    <div class="sb-section">
       <div class="sb-label-row">
         <span class="sb-label">Frequência</span>
         <button class="neg-toggle" data-negkey="freq" onclick="toggleNeg('freq')" title="Excluir valor selecionado">≠</button>
@@ -1178,6 +1193,11 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
         <button class="r-btn" data-classe="vrb" onclick="setClasse('vrb')">Verbo</button>
         <button class="r-btn" data-classe="adv" onclick="setClasse('adv')">Adv.</button>
       </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Sentido (substantivos)</span>
+      <div class="sent-grid" role="group" aria-label="Filtrar por sentido"></div>
+      <p class="sb-hint">Toque em várias para somar; o grupo marca todas as dele. O número é quantos dos resultados atuais têm aquele sentido. Só substantivos têm sentido.</p>
     </div>
     <div class="sh-section">
       <div class="sh-label-row">
@@ -1594,6 +1614,31 @@ function calcClasses(pL) {
     return { classe, classes };
 }
 
+/* Sentidos dos substantivos (classificação semântica do usuário, em
+   dic/substantivos-sentidos.csv → build-sentidos.js → dic/sentidos.txt).
+   11 categorias em 4 grupos; uma palavra pode ter várias (igreja: lugar e
+   instituição). Só substantivos têm sentido: adjetivos, verbos etc. ficam
+   sem, e somem quando o filtro de sentido está ligado. */
+const SENTIDOS = [
+    { grupo: 'Concretos', cats: [['pes','Pessoas'], ['lug','Lugares'], ['obj','Objetos e substâncias'], ['ser','Corpo e seres vivos']] },
+    { grupo: 'Abstratos', cats: [['aca','Ações e eventos'], ['con','Conceitos e qualidades'], ['doe','Doenças'], ['tem','Tempo, ciências e artes']] },
+    { grupo: 'Outros',    cats: [['fic','Ficcionais'], ['ins','Instituições'], ['rel','Relações e normas']] },
+];
+const _GRUPO_DE = Object.fromEntries(SENTIDOS.flatMap(g => g.cats.map(([c]) => [c, g.grupo])));
+let SENTIDOS_LEX = new Map();                      // palavra → ['lug', 'ins']
+const _SEM_SENTIDO = Object.freeze([]);
+function _carregarSentidos(texto) {
+    for (const linha of texto.split(/\r?\n/)) {
+        if (!linha || linha[0] === '#') continue;
+        const tab = linha.indexOf('\t'), cod = linha.slice(0, tab);
+        for (const w of linha.slice(tab + 1).split(' ')) {
+            if (!w) continue;
+            const l = SENTIDOS_LEX.get(w);
+            if (l) l.push(cod); else SENTIDOS_LEX.set(w, [cod]);
+        }
+    }
+}
+
 function perfilFonetico(palavra) {
     let pL = palavra.toLowerCase().trim();
     if (!pL || !/[a-záàâãéêíóôõúü]/i.test(pL)) return null;
@@ -1621,6 +1666,7 @@ function perfilFonetico(palavra) {
         familiaCluster: calcFam(onset),
         coda: calcCoda(pL),
         ...calcClasses(pL),
+        sentidos: SENTIDOS_LEX.get(pL) || _SEM_SENTIDO,
         freq: calcFreq(pL, numSil),
     };
 }
@@ -2456,6 +2502,8 @@ function _renderFavGrid() {
 }
 
 let FILTRO_TRACOS  = new Set(); // traços fonéticos exigidos na coda
+let FILTRO_SENTIDOS = new Set(); // categorias de sentido escolhidas (vazio = qualquer); soma (OU)
+let CONTAGEM_SENTIDOS = {};      // quantos dos resultados atuais caem em cada categoria
 // tolerancia: 0=exato, 1=tier≤1 (sonoridade), 2=tier≤2 (r/l, m/n)
 
 function fuzzyConsMatch(spine, query, maxTier) {
@@ -2520,9 +2568,11 @@ async function indexarDicionario() {
             pegaTexto('../dic/classes-comum.txt'),
             DIC_BASE === 'completo' ? pegaTexto('../dic/classes-completo.txt') : '',
         ]);
+        const sentidos = pegaTexto('../dic/sentidos.txt');   // sem ele, o filtro de sentido fica vazio
         const resp = DIC_BASE === 'completo' ? await fetch('../dic/palavras.txt') : null;
         if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
         for (const texto of await classes) _carregarClasses(texto);
+        _carregarSentidos(await sentidos);
         const textoComuns = await comuns;
         if (DIC_BASE === 'comum' && !textoComuns) throw new Error('k-palavras.txt indisponível');
         PALAVRAS_COMUNS = new Set(textoComuns.split(/\r?\n/)
@@ -2564,9 +2614,11 @@ async function indexarDicionario() {
 function processarBusca() {
     let temCriterio = alvoAtual !== null
         || Object.values(FILTROS).some(v => v !== null)
-        || Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
+        || Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0)
+        || FILTRO_SENTIDOS.size > 0;
     if (!temCriterio) {
         resultadosFiltrados = [];
+        CONTAGEM_SENTIDOS = {}; _renderSentidos();
         renderResultados();
         _updateHash();
         return;
@@ -2700,6 +2752,20 @@ function processarBusca() {
             .map(i => ({ ...i, score: 0 }))
             .sort((a, b) => a.palavra.localeCompare(b.palavra, 'pt-BR'));
     }
+    // Sentido: conta antes de filtrar, para cada chip mostrar quantos há
+    CONTAGEM_SENTIDOS = {};
+    for (const i of resultadosFiltrados) {
+        if (!i.sentidos.length) continue;
+        const grupos = new Set();
+        for (const c of i.sentidos) {
+            CONTAGEM_SENTIDOS[c] = (CONTAGEM_SENTIDOS[c] || 0) + 1;
+            grupos.add(_GRUPO_DE[c]);
+        }
+        for (const g of grupos) CONTAGEM_SENTIDOS[g] = (CONTAGEM_SENTIDOS[g] || 0) + 1;   // palavra conta uma vez por grupo
+    }
+    if (FILTRO_SENTIDOS.size)
+        resultadosFiltrados = resultadosFiltrados.filter(i => i.sentidos.some(c => FILTRO_SENTIDOS.has(c)));
+    _renderSentidos();
     renderResultados();
     _updateHash();
 }
@@ -2962,7 +3028,8 @@ function _rebuildGrid() {
     if (resultadosVisiveis.length === 0) {
         let isVirgin = !alvoAtual && entradaInvalida === null
             && !Object.values(FILTROS).some(v => v !== null)
-            && !Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0);
+            && !Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0)
+            && FILTRO_SENTIDOS.size === 0;
         let msg = entradaInvalida !== null
             ? `<b>${_escHtml(entradaInvalida)}</b> não é uma palavra que eu consiga analisar.<br><span style="font-size:13px">Use só letras (acentos, ç, hífen e apóstrofo valem).</span>`
             : isVirgin
@@ -3273,6 +3340,7 @@ function resetFiltros() {
     });
     FILTRO_TRACOS.clear();
     document.querySelectorAll('[data-traco]').forEach(b => b.classList.remove('sel'));
+    FILTRO_SENTIDOS.clear();
     _syncSilModeUI();
     _syncFiltrosUI();
     processarBusca();
@@ -3328,8 +3396,42 @@ function _syncFiltrosUI() {
 function _updateFabBadge() {
     let hasFiltros = Object.entries(FILTROS).some(([k,v]) => !CAMPOS_MOLDE.includes(k) && v !== null)
         || Object.values(FILTROS_CONTEM).some(v => v !== null && v !== 0)
-        || FILTRO_TRACOS.size > 0;
+        || FILTRO_TRACOS.size > 0
+        || FILTRO_SENTIDOS.size > 0;
     document.getElementById('filter-fab').classList.toggle('has-filters', hasFiltros);
+}
+
+// Chips de sentido: categoria liga/desliga; o chip do grupo liga/desliga o grupo todo
+function toggleSentido(chave) {
+    const grupo = SENTIDOS.find(g => g.grupo === chave);
+    if (grupo) {
+        const cods = grupo.cats.map(c => c[0]);
+        const todos = cods.every(c => FILTRO_SENTIDOS.has(c));
+        cods.forEach(c => todos ? FILTRO_SENTIDOS.delete(c) : FILTRO_SENTIDOS.add(c));
+    } else if (chave === '') {
+        FILTRO_SENTIDOS.clear();
+    } else if (FILTRO_SENTIDOS.has(chave)) FILTRO_SENTIDOS.delete(chave);
+    else FILTRO_SENTIDOS.add(chave);
+    if (navigator.vibrate) navigator.vibrate(15);
+    processarBusca(); _updateFabBadge();
+}
+function _renderSentidos() {
+    const n = c => CONTAGEM_SENTIDOS[c] || 0;
+    const chip = (chave, rotulo, qtd, sel, cls) =>
+        `<button class="r-btn sent-btn${cls ? ' ' + cls : ''}${sel ? ' sel' : ''}${qtd ? '' : ' vazio'}"
+                 data-sentido="${chave}" aria-pressed="${sel}">${rotulo}<span class="sent-n">${qtd.toLocaleString('pt-BR')}</span></button>`;
+    const html =
+        `<div class="radio-row sent-linha">${chip('', 'Qualquer', 0, FILTRO_SENTIDOS.size === 0, 'sent-qualquer')}</div>` +
+        SENTIDOS.map(g => {
+            const cods = g.cats.map(c => c[0]);
+            const soma = n(g.grupo);
+            const todos = cods.every(c => FILTRO_SENTIDOS.has(c));
+            return `<div class="radio-row sent-linha">` +
+                   chip(g.grupo, g.grupo, soma, todos, 'sent-grupo') +
+                   g.cats.map(([c, r]) => chip(c, r, n(c), FILTRO_SENTIDOS.has(c))).join('') +
+                   `</div>`;
+        }).join('');
+    document.querySelectorAll('.sent-grid').forEach(el => { el.innerHTML = html; });
 }
 
 function toggleTrace(traco) {
@@ -3818,6 +3920,12 @@ function toggleFiltrosFixos() {
     if (navigator.vibrate) navigator.vibrate(15);
 }
 try { _aplicarFiltrosFixos(localStorage.getItem(FIXAR_KEY) === '1'); } catch { _aplicarFiltrosFixos(false); }
+
+// Chips de sentido (barra lateral e folha)
+document.addEventListener('click', e => {
+    const b = e.target.closest('.sent-grid [data-sentido]');
+    if (b) toggleSentido(b.dataset.sentido);
+});
 
 // Category chips (modo CONS): click + teclado
 const _catGrid = document.getElementById('cat-grid');
