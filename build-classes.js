@@ -69,12 +69,13 @@ function codigos(w) {
 
 // ── 2. As duas listas do app (mesma limpeza de _listaBaseComum) ─────────
 const ENTRADA_OK = /^[a-zà-öø-ÿ'\-]+$/;
+const LIXO_BASE = /^['-]|['-]$|--|^[a-zà-öø-ÿ]-(?:[oa]s?|l[oa]s?|n[oa]s?|vos|me|te|se|lhes?)$/;
 function baseComum() {
     const vistas = new Set(), lista = [];
     for (const bruto of fs.readFileSync('dic/k-palavras.txt', 'utf8').split(/\r?\n/)) {
         const w = bruto.trim();
         if (w.length < 2 || w !== w.toLowerCase() || !ENTRADA_OK.test(w)
-            || !/[a-zà-öø-ÿ]/.test(w) || vistas.has(w)) continue;
+            || !/[a-zà-öø-ÿ]/.test(w) || LIXO_BASE.test(w) || vistas.has(w)) continue;
         vistas.add(w); lista.push(w);
     }
     return lista;
