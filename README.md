@@ -100,7 +100,7 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 | `resultadosFiltrados` | Array | Current filtered/scored result set |
 | `FILTROS` | Object | Locked filter values (exact match)—keys `numSilabas`, `acentuacao`, `vogalTonica`, `onsetTonico`, `familiaCluster`, `rimaPerfeita`, `vogaisRima`, `espinhaVocal`, `coda`, `classe`, `freq` |
 | `FILTROS_NEG` | Object | Same keys as `FILTROS`; `true` negates that filter |
-| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants and vowels in any order (`consLivre`, `vogLivre`), letters to exclude (`excluir`), onset, endings, beginnings… |
+| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants and vowels in any order (`consLivre`, `vogLivre`), letters to require (`incluir`) and to exclude (`excluir`), onset, endings, beginnings… |
 | `MODO_LIVRE` | Object | `{cons, vog}`: `'exatas'` \| `'repete'` \| `'contem'` — how the two any-order filters count |
 | `modoBusca` | String | `'rima'`, `'cons'` or `'vog'`: which engine ranks the results |
 | `modoCorpus` | Boolean | `true` if ESQ corpus mode is active |
@@ -212,12 +212,13 @@ Consonant similarity uses IPA distinctive features (Chomsky & Halle 1968, Clemen
 Filters work on their own (no anchor word) or on top of any search mode. They are listed
 most-used first — Word class, Meaning, Syllable count, Exact beginning, Exact ending,
 Consonants in any order, Vowels in any order, Consonants and Vowels around the tonic, and
-the exclusion field — and the rest sit below an **Outros filtros** divider:
+the include and exclude fields — and the rest sit below an **Outros filtros** divider:
 - Syllable count (equal / less / greater)
 - Accentuation class (oxítona / paroxítona / proparoxítona)
 - Tonic vowel
 - Rhyme ending (`rimaPerfeita`) — type it directly, e.g. `el`, `ão`, `or`
 - Exact ending and exact beginning (spelling), with `*` standing for exactly one letter (`i*e` → lide, vire; `i**e` → disse, pilhe), and letters before/after the tonic vowel
+- **With these letters or syllables**: `m, tr` keeps only words containing all of them (metro, mestre); same rules as the exclusion field
 - **Without these letters or syllables**: `l, lhe, i` drops every word containing any of them (accent-insensitive, `*` allowed)
 - Onset of the tonic syllable (with phonetic tolerance)
 - Vowel pattern, vowel spine

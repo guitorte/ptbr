@@ -206,7 +206,8 @@ Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
 Both panels (sidebar and phone sheet) list the filters in the user's order of use
 (2026-11-23): **Classe gramatical, Sentido, Número de sílabas, Início exato, Terminação
 exata, Consoantes em qualquer ordem, Vogais em qualquer ordem, Consoantes ao redor da
-tônica, Vogais ao redor da tônica, Sem estas letras ou sílabas** — then an
+tônica, Vogais ao redor da tônica, Com estas letras ou sílabas, Sem estas letras ou
+sílabas** — then an
 **Outros filtros** divider (`.filtros-divisor`) and everything else. Keep the two panels in
 the same order; each section is a self-contained `<div class="sb-section">` /
 `<div class="sh-section">` block, so reordering means moving whole blocks.
@@ -216,6 +217,9 @@ the same order; each section is a self-contained `<div class="sb-section">` /
 - **Wildcards** — `Início exato` and `Terminação exata` accept `*` = exactly one letter
   (`i*e` → lide, vire; `i**e` → disse, pilhe). `_regexGrafia(itens, âncora, normaliza)`
   escapes everything else and anchors with `^`/`$`; comma still means OR.
+- **Com estas letras ou sílabas** (`FILTROS_CONTEM.incluir`) — the mirror of the exclusion
+  field: every item is required (AND), anywhere in the word (`lh` → filho, mulher;
+  `m, tr` → metro, mestre). Same parsing, accent folding and `*` as below; one regex per item.
 - **Sem estas letras ou sílabas** (`FILTROS_CONTEM.excluir`) — comma or space separated;
   drops a word containing any item. Accent-insensitive through `_normParaContem` (`i`
   drops `saída`; `ç` stays distinct), and `*` works here too.
@@ -309,7 +313,7 @@ These bands and weights are Rima mode only; CONS and VOG map their own similarit
 | `resultadosFiltrados` | Current filtered result set |
 | `FILTROS` | Object of locked filter values (exact match) |
 | `FILTROS_NEG` | Negated filter flags |
-| `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields; `consLivre`, `vogLivre`, `excluir`) |
+| `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields; `consLivre`, `vogLivre`, `incluir`, `excluir`) |
 | `MODO_LIVRE` | `{cons, vog}` — `'exatas'` \| `'repete'` \| `'contem'` for the two any-order filters |
 | `modoBusca` | `'rima'` \| `'cons'` \| `'vog'` — which engine ranks the results |
 | `FILTRO_CAT` | Selected category chips in CONS/VOG mode (`'mesmas'` and/or missing-sound symbols) |
