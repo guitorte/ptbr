@@ -921,6 +921,14 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
       </div>
     </div>
     <div class="sb-section">
+      <span class="sb-label">Com estas letras ou sílabas</span>
+      <input id="incluir-input" class="sb-input" type="text"
+             placeholder="lh, m tr…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Só palavras que tenham todas estas letras ou sílabas">
+      <p class="sb-hint">Só palavras que tenham todas elas, em qualquer posição. Vírgula ou espaço separam; acentos não importam; * = uma letra qualquer. Ex: "lh" → filho, mulher; "m, tr" → metro, mestre</p>
+    </div>
+    <div class="sb-section">
       <span class="sb-label">Sem estas letras ou sílabas</span>
       <input id="excluir-input" class="sb-input" type="text"
              placeholder="l, lhe, i…"
@@ -1219,6 +1227,14 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
         <input id="vog-depois-input-sh" class="sb-input sb-input-half" type="text"
                placeholder="depois…" autocorrect="off" autocapitalize="none" spellcheck="false">
       </div>
+    </div>
+    <div class="sh-section">
+      <span class="sh-label">Com estas letras ou sílabas</span>
+      <input id="incluir-input-sh" class="sb-input" type="text"
+             placeholder="lh, m tr…"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             aria-label="Só palavras que tenham todas estas letras ou sílabas">
+      <p class="sb-hint">Só palavras que tenham todas elas, em qualquer posição. Vírgula ou espaço separam; acentos não importam; * = uma letra qualquer. Ex: "lh" → filho, mulher; "m, tr" → metro, mestre</p>
     </div>
     <div class="sh-section">
       <span class="sh-label">Sem estas letras ou sílabas</span>
@@ -2130,6 +2146,7 @@ let FILTROS_CONTEM = {
     inicio: null, grafAntes: null, grafDepois: null,
     consLivre: null, toleranciaLivre: 0,   // consoantes em qualquer ordem
     vogLivre: null,                        // vogais em qualquer ordem
+    incluir: null,                         // com todas estas letras/sílabas (vírgula ou espaço = E)
     excluir: null,                         // sem estas letras/sílabas (vírgula ou espaço)
 };
 
@@ -2739,6 +2756,11 @@ function processarBusca() {
     let inicioList = _lista(FILTROS_CONTEM.inicio && FILTROS_CONTEM.inicio.toLowerCase());
     const inicioRe = _regexGrafia(inicioList, '^');
     // Sem estas letras/sílabas: vírgula ou espaço separam; acentos não importam; * = uma letra
+    // Com estas letras/sílabas: cada item é obrigatório (E); mesmas regras do campo de exclusão
+    const incluirRes = FILTROS_CONTEM.incluir
+        ? FILTROS_CONTEM.incluir.toLowerCase().split(/[\s,]+/).filter(Boolean)
+            .map(x => _regexGrafia([x], '', _normParaContem))
+        : null;
     const excluirRe = FILTROS_CONTEM.excluir
         ? _regexGrafia(FILTROS_CONTEM.excluir.toLowerCase().split(/[\s,]+/).filter(Boolean), '', _normParaContem)
         : null;
@@ -2778,7 +2800,11 @@ function processarBusca() {
         }
         if (termRe && !termRe.test(item.palavra)) return false;
         if (inicioRe && !inicioRe.test(item.palavra)) return false;
-        if (excluirRe && excluirRe.test(_normParaContem(item.palavra))) return false;
+        if (incluirRes || excluirRe) {
+            const pN = _normParaContem(item.palavra);
+            if (incluirRes && !incluirRes.every(re => re.test(pN))) return false;
+            if (excluirRe && excluirRe.test(pN)) return false;
+        }
         if (vogQ && !vogLivreModo(_normParaContem(item.espinhaVocal), vogQ, MODO_LIVRE.vog)) return false;
         if (antesList  && !antesList.some(t => item.grafAntes.includes(t)))   return false;
         if (depoisList && !depoisList.some(t => item.grafDepois.includes(t))) return false;
@@ -3436,13 +3462,13 @@ function resetFiltros() {
     FILTROS_CONTEM.toleranciaAoRedor = 0; FILTROS_CONTEM.terminacao = null;
     FILTROS_CONTEM.inicio = null; FILTROS_CONTEM.grafAntes = null; FILTROS_CONTEM.grafDepois = null;
     FILTROS_CONTEM.consLivre = null; FILTROS_CONTEM.toleranciaLivre = 0;
-    FILTROS_CONTEM.vogLivre = null; FILTROS_CONTEM.excluir = null;
+    FILTROS_CONTEM.vogLivre = null; FILTROS_CONTEM.excluir = null; FILTROS_CONTEM.incluir = null;
     MODO_LIVRE = { cons: 'exatas', vog: 'exatas' }; _syncModoLivreUI();
     _syncTolLivreUI();
     buildSilMode = 'eq';
     ['vogais-input','vogais-input-sh','cons-input','cons-input-sh',
      'cons-livre-input','cons-livre-input-sh',
-     'vog-livre-input','vog-livre-input-sh','excluir-input','excluir-input-sh',
+     'vog-livre-input','vog-livre-input-sh','excluir-input','excluir-input-sh','incluir-input','incluir-input-sh',
      'cons-antes-input','cons-antes-input-sh','cons-depois-input','cons-depois-input-sh',
      'vog-antes-input','vog-antes-input-sh','vog-depois-input','vog-depois-input-sh',
      'term-input','term-input-sh','inicio-input','inicio-input-sh',
@@ -4007,6 +4033,7 @@ function _ligaCampo(idBase, chave) {
     }));
 }
 _ligaCampo('vog-livre-input', 'vogLivre');
+_ligaCampo('incluir-input', 'incluir');
 _ligaCampo('excluir-input', 'excluir');
 _syncModoLivreUI();
 

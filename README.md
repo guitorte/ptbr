@@ -22,7 +22,7 @@ On Windows, double-click `start.bat`.
 
 ```
 ptbr/
-├── exp/index.html              # Main application (JS + HTML + CSS, ~3700 lines, self-contained)
+├── exp/index.html              # Main application (JS + HTML + CSS, ~4,160 lines, self-contained)
 ├── som/                        # "Som": mobile similarity navigator (engine.js, worker.js, index.html)
 ├── song-analysis.html          # "Eco Sonoro": phonetic analysis of a full lyric
 ├── phonetic-engine.js          # IPA consonant distance engine (Chomsky & Halle features)
@@ -81,6 +81,9 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 | `calcScoreCons(profileA, profileB)` | Two profile objects | Number | Consonant mode: similarity of consonant skeletons, same bands |
 | `calcScoreVog(profileA, profileB)` | Two profile objects | Number | Vowel mode: similarity of vowel sequences, same bands |
 | `setModo(modo)` | `'rima'` / `'cons'` / `'vog'` | `void` | Switches the search mode (Rima · Consoantes · Vogais selector) |
+| `consLivreModo(W, Q, tol, modo)` | Two consonant skeletons, tolerance, mode | Boolean | Consonants in any order, in the Exatas / Com repetição / Contém modes |
+| `vogLivreModo(w, q, modo)` | Two vowel strings, mode | Boolean | Vowels in any order, same three modes |
+| `_regexGrafia(itens, âncora, normaliza)` | Patterns, anchor | RegExp | Spelling patterns where `*` is one letter (exact beginning/ending, include/exclude fields) |
 | `processarBusca()` | (from UI state) | `void` (updates DOM) | Main search: scores all dictionary words against `alvoAtual`, applies filters, renders results |
 | `renderCorpus(results)` | Array of stanzas | `void` | Renders ESQ mode corpus cards with rhyme schemes, titles, artists |
 | `buscarCorpus(perfil)` | Phonetic profile | Array of stanzas | Searches corpus index for stanzas matching the rhyme profile |
@@ -100,7 +103,7 @@ All application logic runs client-side. The dictionary is fetched over HTTP and 
 | `resultadosFiltrados` | Array | Current filtered/scored result set |
 | `FILTROS` | Object | Locked filter values (exact match)—keys `numSilabas`, `acentuacao`, `vogalTonica`, `onsetTonico`, `familiaCluster`, `rimaPerfeita`, `vogaisRima`, `espinhaVocal`, `coda`, `classe`, `freq` |
 | `FILTROS_NEG` | Object | Same keys as `FILTROS`; `true` negates that filter |
-| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants and vowels in any order (`consLivre`, `vogLivre`), letters to exclude (`excluir`), onset, endings, beginnings… |
+| `FILTROS_CONTEM` | Object | Free-text filter values—vowels, consonant sequence, consonants and vowels in any order (`consLivre`, `vogLivre`), letters to require (`incluir`) and to exclude (`excluir`), onset, endings, beginnings… |
 | `MODO_LIVRE` | Object | `{cons, vog}`: `'exatas'` \| `'repete'` \| `'contem'` — how the two any-order filters count |
 | `modoBusca` | String | `'rima'`, `'cons'` or `'vog'`: which engine ranks the results |
 | `modoCorpus` | Boolean | `true` if ESQ corpus mode is active |
@@ -212,12 +215,13 @@ Consonant similarity uses IPA distinctive features (Chomsky & Halle 1968, Clemen
 Filters work on their own (no anchor word) or on top of any search mode. They are listed
 most-used first — Word class, Meaning, Syllable count, Exact beginning, Exact ending,
 Consonants in any order, Vowels in any order, Consonants and Vowels around the tonic, and
-the exclusion field — and the rest sit below an **Outros filtros** divider:
+the include and exclude fields — and the rest sit below an **Outros filtros** divider:
 - Syllable count (equal / less / greater)
 - Accentuation class (oxítona / paroxítona / proparoxítona)
 - Tonic vowel
 - Rhyme ending (`rimaPerfeita`) — type it directly, e.g. `el`, `ão`, `or`
 - Exact ending and exact beginning (spelling), with `*` standing for exactly one letter (`i*e` → lide, vire; `i**e` → disse, pilhe), and letters before/after the tonic vowel
+- **With these letters or syllables**: `m, tr` keeps only words containing all of them (metro, mestre); same rules as the exclusion field
 - **Without these letters or syllables**: `l, lhe, i` drops every word containing any of them (accent-insensitive, `*` allowed)
 - Onset of the tonic syllable (with phonetic tolerance)
 - Vowel pattern, vowel spine
@@ -227,7 +231,7 @@ the exclusion field — and the rest sit below an **Outros filtros** divider:
 - Coda consonants (with phonetic feature filters)
 - **Meaning** (nouns only): Pessoas, Lugares, Objetos e substâncias, Corpo e seres vivos, Ações e eventos, Conceitos e qualidades, Doenças, Tempo/ciências/artes, Ficcionais, Instituições, Relações e normas — grouped as Concretos / Abstratos / Outros. Pick several to combine them; each chip shows how many of the current results have that meaning (e.g. rhymes for `coração` that are places: estação, região, pavilhão…)
 - Word class (noun, adjective, verb, adverb) — from the PortiLexicon-UD lexicon; a word that can belong to several classes (`canto`: noun and verb form) shows up under each of them
-- Frequency tier (comum / média / rara — estimated from length and suffixes)
+- Frequency tier (comum / média / rara) — only has an effect with `?dic=completo`; with the default base every word counts as common (see Known Limitations)
 
 ---
 
@@ -305,6 +309,7 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 - Word classes come from PortiLexicon-UD for 89% of the default dictionary (41% of the rest of `palavras.txt`); words it doesn't know — verbs with attached pronouns (`aventuram-se`), names, typos, rare technical words — fall back to a guess from the word ending.
 - Neither word list carries frequency counts. With the default base every word counts as common; with `?dic=completo`, words on the common-word list are "comum" and the rest are estimated from length and suffixes.
 - The default base comes from news text: it includes some typos and a few foreign words and brands.
+- The spelling filters (exact beginning/ending, include/exclude) ignore accents but treat `ç` and `c` as different letters: `cao` doesn't find *ação*; type `ção`.
 - Corpus stanza matching uses rimaPerfeita string equality — stanzas with identical rhyme arrays are deduplicated per song.
 - No support for European Portuguese phonology.
 

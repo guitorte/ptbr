@@ -12,7 +12,7 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 
 | File | Role |
 |------|------|
-| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~3690 lines, self-contained) |
+| `exp/index.html` | Entire app — phonetic engine, scoring, UI, corpus, lyrics panel (~4,160 lines, self-contained) |
 | `phonetic-engine.js` | IPA consonant distance table (Chomsky & Halle features). Dual-mode: `window.PhoneticEngine` in the browser, `module.exports` in Node. Loaded by `exp/index.html` and `som/` (page + worker) via `../phonetic-engine.js` — the Node CLIs do *not* require it |
 | `build-corpus.js` | CLI: `upload/letras_final.json` → `dic/corpus-schemes.json` |
 | `rhyme-extract.js` | CLI: extract rhyme schemes from individual songs, with `--genre/--artist/--song/--index` flags |
@@ -52,6 +52,8 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `toggleCorpusMode()` | Switches between rhyme-finder and ESQ corpus views |
 | `calcEsqueleto(word)` | Phonetic consonant skeleton `{s, l, g, gs, leg}`: IPA symbols (`metade` → `mtd`, `gente` → `ʒŋt`), base letter of each consonant (`casa` → s `z` / l `s`), per-consonant gap cost (coda cheaper, coda nasal/`l` cheapest), readable legend `m·t·d`. A vowel-less input (`dt`) is read as the skeleton itself |
 | `consQualquerOrdem(W, Q, tol)` | Filter *Consoantes em qualquer ordem* (`FILTROS_CONTEM.consLivre` / `toleranciaLivre`): every consonant of `Q` needs its own partner in `W` (bipartite matching, so `tt` needs two t's), any order/position. A pair matches by sound **or** letter (`s` → casa, cidade; `g` → gato, gente). Tol 1 = voicing pairs, tol 2 = + m/n, nh/n, liquids (r/l, lh/l). This is the **Contém** mode; `consLivreModo` adds the other two (see *Text filters*) |
+| `consLivreModo(W, Q, tol, modo)` / `vogLivreModo(w, q, modo)` | The three counting modes of the two any-order filters (`MODO_LIVRE`): `'exatas'`, `'repete'`, `'contem'`. Vowels are compared as plain strings from `espinhaVocal` (`_vogaisDe`). See *Text filters* |
+| `_regexGrafia(itens, âncora, normaliza)` | Spelling patterns with `*` = one letter, for Início/Terminação exata (anchored `^`/`$`) and the Com/Sem estas letras fields (unanchored, accent-folded) |
 | `consCategoria(W, A)` | Skeleton category (works on `esq` and `esqV` alike); in CONS mode: consonant category for the second chip row (`#cat-grid`, filter `FILTRO_CAT`, result field `catCons`): `'mesmas'` = exactly the anchor's consonants in any order (`metade` → método, ditame); a symbol `X` = exactly the anchor's minus `X` ("sem m" → tudo, dote, adote). Strict: no leftover consonant, not even a coda nasal, so substitutions (`batido`, `entada`) stay in the bands. Category words bypass `CONS_PISO` |
 | `calcScoreCons(item, alvo)` | CONS-mode score: weighted edit distance between skeletons (`distEsq`/`simEsq`, substitution cost from `phonetic-engine.js`, edge gaps ×0.6), mapped onto the same 160/130/100/60 bands; vowel sequence is only a ≤15-pt tiebreak |
 | `calcEsqVogal(silabas)` | Vowel skeleton, same shape as `calcEsqueleto` (`{s, l, g, gs, leg}`): one symbol per vowel sound — `a e i o u`, nasals `ã ẽ ĩ õ ũ` (tilde or coda m/n: `gente` → `ẽ·e`), diphthong glides `ɪ ʊ` with a cheaper gap (`peito` → `eⁱ·o`, `mão` → `ãᵘ`, `quase` → `ᵘa·e`); silent `u` of que/gui dropped; é = ê = e. Uses the syllable split only to tell diphthong from hiatus — stress is not consulted. Stored as `esqV` on every profile |
@@ -206,7 +208,8 @@ Real classes come from **PortiLexicon-UD** (USP/C4AI, MIT), preprocessed by
 Both panels (sidebar and phone sheet) list the filters in the user's order of use
 (2026-11-23): **Classe gramatical, Sentido, Número de sílabas, Início exato, Terminação
 exata, Consoantes em qualquer ordem, Vogais em qualquer ordem, Consoantes ao redor da
-tônica, Vogais ao redor da tônica, Sem estas letras ou sílabas** — then an
+tônica, Vogais ao redor da tônica, Com estas letras ou sílabas, Sem estas letras ou
+sílabas** — then an
 **Outros filtros** divider (`.filtros-divisor`) and everything else. Keep the two panels in
 the same order; each section is a self-contained `<div class="sb-section">` /
 `<div class="sh-section">` block, so reordering means moving whole blocks.
@@ -216,6 +219,9 @@ the same order; each section is a self-contained `<div class="sb-section">` /
 - **Wildcards** — `Início exato` and `Terminação exata` accept `*` = exactly one letter
   (`i*e` → lide, vire; `i**e` → disse, pilhe). `_regexGrafia(itens, âncora, normaliza)`
   escapes everything else and anchors with `^`/`$`; comma still means OR.
+- **Com estas letras ou sílabas** (`FILTROS_CONTEM.incluir`) — the mirror of the exclusion
+  field: every item is required (AND), anywhere in the word (`lh` → filho, mulher;
+  `m, tr` → metro, mestre). Same parsing, accent folding and `*` as below; one regex per item.
 - **Sem estas letras ou sílabas** (`FILTROS_CONTEM.excluir`) — comma or space separated;
   drops a word containing any item. Accent-insensitive through `_normParaContem` (`i`
   drops `saída`; `ç` stays distinct), and `*` works here too.
@@ -309,7 +315,7 @@ These bands and weights are Rima mode only; CONS and VOG map their own similarit
 | `resultadosFiltrados` | Current filtered result set |
 | `FILTROS` | Object of locked filter values (exact match) |
 | `FILTROS_NEG` | Negated filter flags |
-| `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields; `consLivre`, `vogLivre`, `excluir`) |
+| `FILTROS_CONTEM` | Free-text filter values (vowels, consonants, onset fields; `consLivre`, `vogLivre`, `incluir`, `excluir`) |
 | `MODO_LIVRE` | `{cons, vog}` — `'exatas'` \| `'repete'` \| `'contem'` for the two any-order filters |
 | `modoBusca` | `'rima'` \| `'cons'` \| `'vog'` — which engine ranks the results |
 | `FILTRO_CAT` | Selected category chips in CONS/VOG mode (`'mesmas'` and/or missing-sound symbols) |
