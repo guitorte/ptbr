@@ -19,8 +19,8 @@ A browser-based Portuguese rhyme and lyric tool. Users type a word and get ranke
 | `build-classes.js` | CLI: `node build-classes.js <PortiLexicon-UD clone>` → `dic/classes-comum.txt` + `dic/classes-completo.txt`. Re-run after changing either word list |
 | `dic/classes-comum.txt`, `dic/classes-completo.txt` | Word classes from PortiLexicon-UD (MIT, `dic/PORTILEXICON-LICENSE`): one line per class combination, `<codes>\t<word> <word> …`, codes `s a v d o`. `-comum` = default base (27,721 of 31,074 words); `-completo` = rest of `palavras.txt` (55,168 of 133,072), loaded only with `?dic=completo` |
 | `build-sentidos.js` | CLI: `node build-sentidos.js` → `dic/sentidos.txt` from `dic/substantivos-sentidos.csv`. Re-run after editing the CSV |
-| `dic/substantivos-sentidos.csv` | **The user's own semantic classification** of the nouns (`Palavra, Seção, Categoria, Observação`; 13,009 rows). Source of truth for the meaning filter — edit this, not `sentidos.txt`. Section 5 ("Ruídos": 1,636 adjectives/participles, 246 verbs/pronouns, 78 typos) is ignored by the build |
-| `dic/sentidos.txt` | Generated: one line per category, `<code>\t<word> <word> …` (codes `pes lug obj ser aca con doe tem fic ins rel`); 10,940 words, 105 KB |
+| `dic/substantivos-sentidos.csv` | **The user's own semantic classification** of the nouns (`Palavra, Seção, Categoria, Observação`; 13,562 rows). Source of truth for the meaning filter — edit this, not `sentidos.txt`. Section 5 ("Ruídos": 1,718 adjectives/participles, 251 verbs/pronouns, 78 typos) is ignored by the build. 553 rows (2026-11-23) were classified by Claude, following the user's own choices for similar words, and say `sugestão Claude` in *Observação* — nouns the user's first pass had skipped. Add new rows by inserting lines, never by rewriting the file, so the user's own lines stay byte-identical |
+| `dic/sentidos.txt` | Generated: one line per category, `<code>\t<word> <word> …` (codes `pes lug obj ser aca con doe tem fic ins rel`); 11,406 words, 109 KB |
 | `dic/palavras.txt` | Full dictionary: 145,744 Portuguese words, one per line (1.5 MB). **Not the app's default base any more** — `exp/` uses it only with `?dic=completo`; `som/` still uses it |
 | `dic/corpus-schemes.json` | 474 songs × deduplicated stanzas in compact `{a,t,g,s[]}` format (139 KB) |
 | `upload/letras_final.json` | 478 song lyrics with full text (`{artista, titulo, letra, genero, fonte}`) — lazy-loaded in-browser on first card click |
@@ -256,10 +256,10 @@ compiled by `build-sentidos.js` into `dic/sentidos.txt`, loaded into `SENTIDOS_L
   can give every chip the number of *current results* in it (groups count each
   word once). Ranking is unchanged — the filter only removes.
 - Counts as an active filter (`temCriterio`, FAB badge): with no anchor word, picking
-  only "Doenças" lists all 123 disease nouns.
+  only "Doenças" lists all 130 disease nouns.
 - Not stored in the URL hash (like the other typed/multi-select filters).
 - If `sentidos.txt` fails to load, chips show 0 and the app works normally.
-- Coverage: 10,929 of the 31,074 default-base words; nothing for `?dic=completo`
+- Coverage: 11,395 of the 31,074 default-base words; nothing for `?dic=completo`
   words outside it.
 
 ---
