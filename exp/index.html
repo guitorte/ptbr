@@ -382,7 +382,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   display: flex; align-items: center; gap: 6px;
   padding: 7px 10px; border-radius: 10px;
   background: var(--bg); border: 2px solid var(--border);
-  cursor: pointer; user-select: none;
+  cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   transition: opacity 0.18s, transform 0.1s, border-color 0.15s;
   min-height: 36px;
 }
@@ -431,7 +431,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   background: var(--bg); border: 2px solid var(--border);
   padding: 5px 11px; border-radius: 20px;
   font-size: 12px; font-weight: 600; color: var(--muted);
-  cursor: pointer; user-select: none;
+  cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   display: flex; align-items: center; gap: 3px;
   transition: transform 0.1s;
   touch-action: none;
@@ -475,7 +475,7 @@ input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appe
   background: var(--surface); border: 2px solid var(--border);
   border-radius: 12px; padding: 10px 6px 7px;
   text-align: center; font-size: 15px; font-weight: 500;
-  cursor: pointer; user-select: none;
+  cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   transition: transform 0.1s, border-color 0.15s;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
@@ -3694,6 +3694,10 @@ function _addLongPress(el, cb, delay = 420) {
     const cancel = () => { clearTimeout(timer); timer = null; };
     const start = e => {
         _lpSuppressClick = false;
+        // Uma seleção de texto do sistema (iOS) que tenha ficado ativa "engole" os
+        // toques longos seguintes: limpa antes de começar a contar.
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.rangeCount && !sel.isCollapsed) sel.removeAllRanges();
         startX = e.clientX; startY = e.clientY;
         cancel();
         timer = setTimeout(() => {
@@ -3712,6 +3716,7 @@ function _addLongPress(el, cb, delay = 420) {
     el.addEventListener('pointerup', cancel);
     el.addEventListener('pointercancel', cancel);
     el.addEventListener('pointermove', move, { passive: true });
+    el.addEventListener('contextmenu', e => e.preventDefault());   // menu do toque longo (Android/iOS)
 }
 
 /* ═══════════════════════════════════════════════════════════════
