@@ -274,6 +274,11 @@ compiled by `build-sentidos.js` into `dic/sentidos.txt`, loaded into `SENTIDOS_L
 - Lyric words in the lyrics panel deliberately **skip** `palavraValida` and go
   straight to `perfilFonetico`, exactly like `build-corpus.js`, so stanzas keep
   matching the pre-built corpus.
+- **Long-press on a card** toggles it as a favourite (`_addLongPress`, 420 ms). Cards and pills
+  carry `-webkit-user-select: none` and `-webkit-touch-callout: none`: iOS Safari ignores the
+  unprefixed `user-select`, and its native text selection then swallowed later long-presses
+  ("after a few words it stops highlighting"). `_addLongPress` also clears any leftover
+  selection on press and blocks the long-press `contextmenu`.
 - Output that reaches `innerHTML` (card syllables, rhyme tags, filter pills,
   history, corpus cards) is escaped with `_escHtml` as a second line of defence.
 - **`dic/k-palavras.txt` is the common-word list** (`PALAVRAS_COMUNS`, ~46k
