@@ -188,7 +188,7 @@ Rhyme quality (the tonic vowel + everything after it) is the primary criterion. 
 The syllable carrying primary stress. Identified by, in order:
 1. An acute or circumflex accent (á, é, í, ó, ú, â, ê, ô)
 2. A nasal tilde (ã, õ)
-3. Final stress (oxítona) if the word ends in r, l, z, x, i(s), u(s), im, ins, om, ons, um, uns
+3. Final stress (oxítona) if the word ends in r, l, z, x, i(s), u(s), im, ins, om, ons, um, uns — and uan(s), for names like Juan and Luan
 4. Penultimate stress (paroxítona) otherwise — the most common case in Portuguese
 5. Antepenultimate stress (proparoxítona) only ever comes from a written accent
 
@@ -305,7 +305,7 @@ Example: if you change `rimaPerfeita` weights, run a search for a common word an
 
 ## Known Limitations
 
-- Syllabification is rule-based and may fail on loanwords, proper nouns, or unusual clusters.
+- Syllabification is rule-based and may fail on loanwords, proper nouns, or unusual clusters. Special cases it does handle: accented diphthongs (tro·féu, he·rói), hiatus after pro-/co- (pro·i·bir), final -uim (ru·im) and *ao/aos* as one syllable — see `CLAUDE.md`.
 - Word classes come from PortiLexicon-UD for 89% of the default dictionary (41% of the rest of `palavras.txt`); words it doesn't know — verbs with attached pronouns (`aventuram-se`), names, typos, rare technical words — fall back to a guess from the word ending.
 - Neither word list carries frequency counts. With the default base every word counts as common; with `?dic=completo`, words on the common-word list are "comum" and the rest are estimated from length and suffixes.
 - The default base comes from news text: it includes some typos and a few foreign words and brands.

@@ -119,6 +119,11 @@ then neighbours. Typing only vowels searches the pattern itself (`eae`, `oao`).
 Always patch all five, then rebuild the corpus. `exp/index.backup.html` and
 `exp/v02.html` hold two more stale copies — leave those alone, they are archives.
 
+Two more live copies sit **outside** the repo, in the user's "Letras" project:
+`prosody-engine.js` (adds poetic scansion: sinérese, elisão, crase…) and the
+Eco Rítmico page (stress marking line by line). All seven were aligned on 2026-11-28;
+a syllable or stress fix here should be offered there too.
+
 Verify: `grep -n "function identificarTonica" -A 10 exp/index.html build-corpus.js rhyme-extract.js song-analysis.html som/engine.js`
 
 `idxNucleo`/`semGlideQU` (the qu/gu fix for vowel fields) exist only in `exp/index.html` and
@@ -133,7 +138,7 @@ Resolution order — first rule that fires wins:
 
 1. Explicit acute/circumflex accent (`á é í ó ú â ê ô`) → that syllable.
 2. Nasal tilde (`ã õ`) → that syllable.
-3. Oxytone endings `r l z x i is u us im ins om ons um uns` → last syllable.
+3. Oxytone endings `r l z x i is u us im ins om ons um uns uan uans` → last syllable.
 4. Paroxytone endings `a as e es o os am em ens` → penultimate.
 5. Default → penultimate.
 
@@ -148,9 +153,30 @@ Known gaps, deliberately left alone:
 - **`-n`** is orthographically oxytone, but all 119 unaccented `-n` words in the
   dictionary are unadapted loanwords pronounced as paroxytones in BP (bacon,
   login, design, slogan, kelvin). Adding it would cause more errors than it fixes.
-- **Accented diphthongs** — `tratarHiatosVogais` tests `/^(ai|au|ei|eu|iu|oi|ou|ui|ão|õe|ãe)$/`
-  without the accented variants, so `troféu` splits as `tro-FÉ-u` (3 syllables
-  instead of 2). Stress lands correctly; only the syllable count is wrong.
+  The one exception is **`-uan(s)`** (2026-11-28): names read as `-ã` (Ju·AN,
+  Lu·AN, Kau·AN); in the dictionary it changes only `yuan`/`yuans`. A broader
+  `-an` was tried and rejected: it misplaced the stress in 36 words (slo·GAN,
+  je·ANS, bar·MAN, ma·nhat·TAN) to fix three (sedan, taliban, tarzan).
+
+---
+
+## Syllabification special cases (`tratarHiatosVogais` / `silabificar`)
+
+Rules beyond the textbook ones, each checked against the whole dictionary:
+
+- **Accented diphthongs** (2026-11-28) — `áu ái éu éi êu êi ói ôi óu ôu` stay in one
+  syllable: tro·FÉU, he·RÓI, pa·PÉIS, ÁU·di·o, des·TRÓI·er (607 words changed;
+  before, `troféu` came out as tro·FÉ·u). With the accent on the second vowel it
+  stays a hiatus: sa·Ú·de, ba·Ú, pro·te·Í·na. Rhymes don't change (`troféu` still
+  rhymes on `-éu`); syllable counts, `esqV` and Som's IPA do (`tɾo.ˈfɛw`).
+- **Prefix pro-/co- + i** (2026-11-11) — hiatus: pro·i·BIR, co·i·BIR, co·i·GUAL,
+  co·ir·MÃO (`ehHiatoPrefixo`).
+- **Final `-uim`** (2026-11-28) — hiatus: ru·IM, ca·u·IM, be·du·IM (27 words), so
+  `ruim` rhymes with `fim`/`assim` (rhyme `im`, was `uim`; 12 corpus tokens moved).
+  The plural `ru·ins` already split, via the nasal rule.
+- **`ao` / `aos`** (2026-11-28) — one syllable (was a·o).
+- **`qu`/`gu` + vowel** — one consonant unit that joins the consonant block in
+  progress: lín·gua, es·que·ma, an·ti·qua·do.
 
 ---
 

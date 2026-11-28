@@ -1401,11 +1401,14 @@ function tratarHiatosVogais(blocoVoc, pLower) {
     let resultado = [], atual = blocoVoc[0];
     for (let i = 1; i < blocoVoc.length; i++) {
         let char = blocoVoc[i], par = (atual.slice(-1) + char).toLowerCase();
-        let formamDitongo   = /^(ai|au|ei|eu|iu|oi|ou|ui|ão|õe|ãe)$/.test(par);
+        // ditongos com acento na 1ª vogal também ficam juntos: tro·FÉU, he·RÓI, ÁU·di·o
+        // (com acento na 2ª, í/ú, segue hiato: sa·Ú·de, ba·Ú)
+        let formamDitongo   = /^(ai|au|ei|eu|iu|oi|ou|ui|ão|õe|ãe|ái|áu|éi|éu|êi|êu|ói|ôi|óu|ôu)$/.test(par);
         let vogaisIdenticas = par[0] === par[1];
         let temHiatoAcent   = /[aeiouáéíóúâêôãõü][íú]/.test(par);
-        let ehHiatoFinal    = /^(ai|ui|au|oe)$/.test(par) &&
-                              (pLower.endsWith(par+"r")||pLower.endsWith(par+"z")||pLower.endsWith(par+"l"));
+        let ehHiatoFinal    = (/^(ai|ui|au|oe)$/.test(par) &&
+                              (pLower.endsWith(par+"r")||pLower.endsWith(par+"z")||pLower.endsWith(par+"l"))) ||
+                              (par === "ui" && pLower.endsWith("uim"));   // ru·im (o plural ru·ins já saía certo)
         let seguidoDeNh     = pLower.includes(par+"nh");
         let pos = pLower.indexOf(par);
         let seguidoDeNasal  = pos >= 0 && pLower[pos+2] === 'n' && pos+3 < pLower.length && !vRegex.test(pLower[pos+3]);
@@ -1438,6 +1441,8 @@ function separarConsoantes(cBlock) {
 }
 
 function silabificar(palavra) {
+    // contração "ao(s)": ditongo, uma sílaba (antes saía a·o)
+    if (/^aos?$/i.test(palavra)) return [palavra];
     let blocos = [], tipoAt = '', textoAt = '';
     for (let i = 0; i < palavra.length; i++) {
         let ch = palavra[i], chL = ch.toLowerCase();
@@ -1477,7 +1482,9 @@ function identificarTonica(silabas, p) {
     let t = p.toLowerCase();
     for (let i=0;i<silabas.length;i++) if(/[áéíóúâêô]/i.test(silabas[i])) return i;
     for (let i=0;i<silabas.length;i++) if(/[ãõ]/i.test(silabas[i])) return i;
-    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|om|ons|um|uns)$/)) return silabas.length-1;
+    // -uan(s): nomes como Ju·AN, Lu·AN, Kau·AN (lidos como -ã); só -uan, porque -an
+    // sem acento em geral é empréstimo paroxítono (SLO·gan, BAR·man, JE·ans)
+    if (t.match(/(r|l|z|x|i|is|u|us|im|ins|om|ons|um|uns|uan|uans)$/)) return silabas.length-1;
     if (t.match(/(a|as|e|es|o|os|am|em|ens)$/))        return Math.max(0,silabas.length-2);
     return Math.max(0,silabas.length-2);
 }
